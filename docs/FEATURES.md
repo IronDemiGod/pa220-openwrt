@@ -1,18 +1,6 @@
 # PA-220 OpenWrt Features
 
-- [Hardware support](#hardware-support)
-- [Network](#network)
-- [Performance](#performance)
-- [LEDs](#leds)
-- [Temperatures and RTC](#temperatures-and-rtc)
-- [LuCI pages](#luci-pages)
-- [Install, upgrade, recovery](#install-upgrade-recovery)
-- [U-Boot](#u-boot)
-- [Included packages](#included-packages)
-- [Other defaults](#other-defaults)
-- [Not supported / untested](#not-supported--untested)
 
----
 
 ## Hardware support
 
@@ -38,7 +26,7 @@ Board kernel patches:
 - MACs read from the EEPROM.
 - CN70xx AGL support (MGT port).
 - Core-mask fallback (all 4 cores come up).
-- eMMC in SDR mode (stable on this board).
+- eMMC in SDR mode (stable on this board, DDR was very unstable).
 - Watchdog reports the real timeout (no more reboot after a short stall).
 
 ## Network
@@ -50,8 +38,7 @@ Board kernel patches:
 | `lan` (`br-lan`) | lan1–lan8 | 192.168.1.2/24, gateway 192.168.1.1, DNS 1.1.1.1, DHCP server off |
 | `mgmt` | MGT | 192.168.2.1/24, DHCP server on (.100–.149) |
 
-- Front ports: meant to sit behind an existing router at 192.168.1.1, which
-  keeps doing DHCP.
+- Front ports: All bridged (basically a switch).
 - MGT: separate management network. Plug a PC in directly, LuCI/SSH at
   192.168.2.1.
 - MGT firewall zone `mgmt`: ping/SSH/LuCI to the box allowed, no forwarding
@@ -63,9 +50,7 @@ Board kernel patches:
 
 - All traffic between the front ports goes through the CPU.
 - Every port is a normal Linux interface: bridge, route, VLAN, WAN, etc.
-- Fix for the unplugged MGT port: its static route no longer steals replies
-  meant for `br-lan`.
-
+- 
 ## Performance
 
 ### Bridge fast path (on by default)
@@ -91,10 +76,10 @@ Measured (bridged gigabit internet):
 
 | | Download | Upload |
 |---|---|---|
-| Fast path on | 945 Mbit/s, ~12 % softirq | 470 Mbit/s, ~6 % softirq |
-| Fast path off | 940 Mbit/s, ~25–30 % softirq | — |
+| Fast path on | 945 Mbit/s, ~12 % softirq | 910 Mbit/s, ~6 % softirq |
+| Fast path off | 940 Mbit/s, ~25–30 % softirq | 850 Mbit/s, ~15-20 % softirq |
 
-- Upload is limited by the internet connection, not the PA-220.
+- (UL/DL speed reading were influenced by my ISP only, not the firewall).
 - softirq % = share of CPU time (all 4 cores) spent processing packets in
   the kernel.
 
@@ -114,14 +99,12 @@ Measured (bridged gigabit internet):
 
 - Firewall software flow offloading on by default (established routed/NAT
   connections skip most of the firewall path).
-- Setting: LuCI → Network → Firewall → General Settings.
 
 ### Crypto
 
 - COP2 AES and GHASH drivers: faster AES-CBC, AES-CTR and AES-GCM for IPsec
   (strongSwan) and anything else using the kernel crypto API.
 - WireGuard doesn't use AES, so no gain there.
-- Crypto self-tests skipped at boot.
 
 ## LEDs
 
@@ -153,10 +136,6 @@ Two LEDs per jack, mode set separately:
 - Night mode: all LEDs off between two times (e.g. 23:00–07:00, can wrap
   past midnight). Optional HA solid green during the night period.
 - ALM red keeps its kernel-panic function even with the LEDs off.
-- Config: `/etc/config/pa220`, section `leds`.
-- CLI: `pa220-leds on | off | status | apply`.
-- Service `/etc/init.d/pa220-leds` applies settings and the night schedule
-  (checks every 30 s).
 
 ## Temperatures and RTC
 
@@ -190,8 +169,6 @@ Performance page live status:
 - Same data on the CLI: `pa220-net status`.
 - Changes apply instantly, no reboot.
 
-## Install, upgrade, recovery
-
 ### eMMC layout
 
 | Partition | Size | Contents |
@@ -199,35 +176,7 @@ Performance page live status:
 | p1 | 256 MiB ext3 | Kernel `/vmlinux.oct3-mp` + backup `/vmlinux.oct3-mp.bak`, mounted at `/boot` |
 | p2 | Rest (~27 GiB) | ext4 root |
 
-### Images
-
-| File | Use |
-|---|---|
-| `…-initramfs-kernel.bin` | RAM image, TFTP boot from U-Boot (`run linux_ram`). Root password `password`. |
-| `…-targz-sysupgrade.tar` | Install + upgrade image |
-
-### Install
-
-`pa220-install <tftp-server> [image] [backup|none]`, on the serial console
-of the RAM image:
-1. Fetches the image (+ optional LuCI settings backup) over TFTP.
-2. Partitions and formats the whole eMMC (asks for "yes" first).
-3. Installs the image.
-4. Restores the settings on first boot.
-
-Same command for re-installing a broken system.
-
-### Upgrade
-
-Standard sysupgrade: LuCI (System → Backup / Flash Firmware) or
-`sysupgrade -v <image>`, settings kept.
-
-- New kernel written to p1, old one kept as `.bak`. U-Boot falls back to
-  `.bak` if the new one can't be loaded.
-- Root file system recreated, settings restored.
-- Compat version 2.0: older firmware with the old eMMC layout refuses the
-  image instead of breaking.
-- Extra `apk` packages are not kept.
+(p1 is ext3 due to limitation by Palo alto's initial bootloader stages)
 
 ## U-Boot
 
@@ -243,7 +192,7 @@ Features:
 - Boots `/vmlinux.oct3-mp` from eMMC, falls back to `.bak`. 2 s countdown,
   any key stops it.
 - Kernel load ~0.3 s (eMMC 8-bit DDR, 100 ms wait per read removed).
-- `run linux_ram`: TFTP boot of the RAM image.
+- TFTP boot of the RAM image.
 - MACs + serial number from the board EEPROM, passed to Linux.
 - QSGMII links set up for the front ports.
 - CPLD:
@@ -274,10 +223,7 @@ On top of the standard OpenWrt set:
 ## Other defaults
 
 - Kernel messages off the serial console once booted (still in `dmesg`).
-  Setting: LuCI → System → System → Logging.
-- Boot:
-  - OpenWrt failsafe wait 2 s (stock 4 s)
-  - 1 s wait for a missing wireless config skipped
+  Setting: LuCI → System → System → Logging.d
 - RAM image root password `password` (never runs with an empty password).
   Installed systems not affected.
 
