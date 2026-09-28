@@ -1,0 +1,73 @@
+#!/bin/sh
+#
+# PA-220 TEMP LED: green normally, orange when the hottest TMP421 reading
+# (in practice the CPU die, remote channel) reaches the "hot" threshold,
+# back to green once it drops below "cool". Thresholds come from
+# /etc/config/pa220 (section temp; LuCI Status -> Temperatures) and are
+# re-read on every check. Checked every INTERVAL seconds.
+#
+
+INTERVAL=${INTERVAL:-15}
+
+read_thresholds() {
+	HOT_C=$(uci -q get pa220.temp.hot); COOL_C=$(uci -q get pa220.temp.cool)
+	case "$HOT_C" in ''|*[!0-9]*) HOT_C=85 ;; esac
+	case "$COOL_C" in ''|*[!0-9]*) COOL_C=80 ;; esac
+	[ "$COOL_C" -lt "$HOT_C" ] || COOL_C=$((HOT_C - 5))
+}
+
+GREEN=/sys/class/leds/green:temp
+ORANGE=/sys/class/leds/orange:temp
+
+max_temp_mc() {
+	local h t max=
+	for h in /sys/class/hwmon/hwmon*; do
+		[ "$(cat "$h/name" 2>/dev/null)" = "tmp421" ] || continue
+		for t in "$h"/temp*_input; do
+			[ -r "$t" ] || continue
+			# skip remote channels reporting an open/shorted diode
+			[ "$(cat "${t%_input}_fault" 2>/dev/null)" = "1" ] && continue
+			t=$(cat "$t" 2>/dev/null) || continue
+			[ -n "$t" ] || continue
+			[ -z "$max" ] || [ "$t" -gt "$max" ] && max=$t
+		done
+	done
+	echo "$max"
+}
+
+set_led() {
+	echo none > "$1/trigger" 2>/dev/null
+	echo "$2" > "$1/brightness" 2>/dev/null
+}
+
+state=
+while :; do
+	# LEDs switched off by pa220-leds: leave TEMP alone, re-apply afterwards
+	if [ -e /tmp/pa220-leds.off ]; then
+		state=
+		sleep "$INTERVAL"
+		continue
+	fi
+	read_thresholds
+	t=$(max_temp_mc)
+	if [ -n "$t" ]; then
+		if [ "$t" -ge $((HOT_C * 1000)) ]; then
+			new=hot
+		elif [ "$t" -lt $((COOL_C * 1000)) ]; then
+			new=ok
+		else
+			new=${state:-ok}
+		fi
+		if [ "$new" != "$state" ]; then
+			if [ "$new" = hot ]; then
+				set_led "$GREEN" 0; set_led "$ORANGE" 1
+				logger -t pa220-templed "temperature $((t / 1000))C >= ${HOT_C}C, TEMP LED orange"
+			else
+				set_led "$ORANGE" 0; set_led "$GREEN" 1
+				[ -n "$state" ] && logger -t pa220-templed "temperature $((t / 1000))C < ${COOL_C}C, TEMP LED green"
+			fi
+			state=$new
+		fi
+	fi
+	sleep "$INTERVAL"
+done

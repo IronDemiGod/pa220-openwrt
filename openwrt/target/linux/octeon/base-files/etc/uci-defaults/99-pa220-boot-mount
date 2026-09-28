@@ -1,0 +1,25 @@
+#!/bin/sh
+#
+# PA-220 installed on eMMC (root on /dev/mmcblk0p2): mount the U-Boot boot
+# partition p1 (holds /vmlinux.oct3-mp) at /boot. Skipped when running
+# from the RAM (initramfs) image.
+#
+
+. /lib/functions.sh
+
+case "$(board_name)" in
+pan,pa-220)
+	[ "$(awk '$2 == "/" { print $3 }' /proc/mounts | tail -1)" = "ext4" ] || exit 1
+	[ -f /etc/config/fstab ] || exit 1
+	uci -q get fstab.pa220boot >/dev/null && exit 0
+	uci -q batch <<-EOT
+		set fstab.pa220boot=mount
+		set fstab.pa220boot.target='/boot'
+		set fstab.pa220boot.device='/dev/mmcblk0p1'
+		set fstab.pa220boot.enabled='1'
+		commit fstab
+	EOT
+	;;
+esac
+
+exit 0

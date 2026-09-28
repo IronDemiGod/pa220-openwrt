@@ -1,0 +1,27 @@
+#!/bin/sh
+#
+# PA-220: packet steering (RPS) off by default. The ethernet driver already
+# spreads received flows over the four cores in hardware (POW groups), so
+# RPS only adds cross-CPU work: measured 25-30 % softirq load at 940 Mbit/s
+# bridged with it off, 35-40 % with it on. It remains a setting in LuCI ->
+# Network -> Interfaces -> Global network options.
+#
+
+. /lib/functions.sh
+
+case "$(board_name)" in
+pan,pa-220)
+	[ -f /etc/config/network ] || exit 0
+	uci -q get network.globals >/dev/null || exit 0
+	# only once, so a later user change survives sysupgrade
+	touch /etc/config/pa220
+	uci -q get pa220.defaults.packet_steering >/dev/null && exit 0
+	uci -q set network.globals.packet_steering='0'
+	uci -q commit network
+	uci -q set pa220.defaults=defaults
+	uci -q set pa220.defaults.packet_steering='1'
+	uci -q commit pa220
+	;;
+esac
+
+exit 0

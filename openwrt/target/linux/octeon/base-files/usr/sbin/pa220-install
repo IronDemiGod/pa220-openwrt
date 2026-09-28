@@ -1,0 +1,143 @@
+#!/bin/sh
+#
+# PA-220: install OpenWrt on the eMMC
+#
+#   p1 = 256 MiB ext3 boot (kernel /vmlinux.oct3-mp, what U-Boot loads)
+#   p2 = ext4 root (rest of the eMMC)
+#
+# Run it on the serial console of the RAM image (U-Boot: run linux_ram),
+# with the MGT port on the network. It fetches the sysupgrade image and,
+# optionally, a LuCI settings backup from a TFTP server, re-partitions and
+# formats the WHOLE eMMC (whatever was on it, e.g. PanOS, is lost), installs
+# the image and puts the backup where the first boot restores it.
+# Also the recovery path for a broken install.
+#
+# pa220-install <tftp-server> [image] [backup|none]
+#   image:  default openwrt-octeon-generic-pan_pa-220-targz-sysupgrade.tar
+#   backup: LuCI "Generate archive" file, default none (factory settings)
+#
+
+. /lib/functions.sh
+
+SERVER=$1
+IMAGE=${2:-openwrt-octeon-generic-pan_pa-220-targz-sysupgrade.tar}
+BACKUP=${3:-none}
+DISK=/dev/mmcblk0
+BOOT_START=2048
+BOOT_SIZE=524288		# 256 MiB in 512-byte sectors
+ROOT_START=$((BOOT_START + BOOT_SIZE))
+WORK=/tmp/pa220-install
+
+die() {
+	echo "ERROR: $*" >&2
+	exit 1
+}
+
+fetch() {
+	echo "fetching $1 from $SERVER"
+	rm -f "$WORK/$1"
+	tftp -g -b 1468 -r "$1" -l "$WORK/$1" "$SERVER" 2>/dev/null ||
+		tftp -g -r "$1" -l "$WORK/$1" "$SERVER" ||
+		die "could not fetch $1 (is a TFTP server running on $SERVER with the file in its folder?)"
+	[ -s "$WORK/$1" ] || die "$1 is empty"
+}
+
+magic() {
+	head -c "$2" "$1" | hexdump -v -e '1/1 "%02x"'
+}
+
+wait_for() {
+	local i=0
+	while [ $i -lt 20 ]; do
+		eval "$1" && return 0
+		sleep 1
+		i=$((i + 1))
+	done
+	return 1
+}
+
+[ -n "$SERVER" ] || die "usage: pa220-install <tftp-server> [image] [backup|none]"
+[ "$(board_name)" = "pan,pa-220" ] || die "not a PA-220"
+case "$(awk '$2 == "/" { t = $3 } END { print t }' /proc/mounts)" in
+rootfs|ramfs|tmpfs) ;;
+*) die "run this from the RAM image (at the U-Boot prompt: run linux_ram), not from the installed system" ;;
+esac
+[ -b "$DISK" ] || die "$DISK not found"
+grep -q "^$DISK" /proc/mounts && die "a partition of $DISK is mounted, unmount it first"
+
+mkdir -p "$WORK"
+
+echo "waiting for the network (MGT port) ..."
+wait_for "ping -c 1 -W 1 $SERVER >/dev/null 2>&1" ||
+	die "$SERVER does not answer; check the MGT cable and 'ip addr show mgmt'"
+
+fetch "$IMAGE"
+board_dir=$(tar tf "$WORK/$IMAGE" 2>/dev/null | grep -m 1 '^sysupgrade-.*/$')
+board_dir=${board_dir%/}
+[ -n "$board_dir" ] || die "$IMAGE is not a sysupgrade image"
+[ "$(tar xf "$WORK/$IMAGE" "$board_dir/kernel" -O 2>/dev/null | head -c 4 | hexdump -v -e '1/1 "%02x"')" = 7f454c46 ] ||
+	die "$IMAGE has no valid kernel"
+[ "$(tar xf "$WORK/$IMAGE" "$board_dir/root" -O 2>/dev/null | head -c 2 | hexdump -v -e '1/1 "%02x"')" = 1f8b ] ||
+	die "$IMAGE is not the targz image"
+
+if [ "$BACKUP" != none ]; then
+	fetch "$BACKUP"
+	[ "$(magic "$WORK/$BACKUP" 2)" = 1f8b ] || die "$BACKUP is not a .tar.gz settings backup"
+	tar tzf "$WORK/$BACKUP" 2>/dev/null | grep -q '^etc/config/' ||
+		die "$BACKUP does not look like a LuCI settings backup"
+fi
+
+total=$(cat /sys/block/mmcblk0/size)
+[ "$total" -gt $((ROOT_START + 2097152)) ] || die "eMMC too small"
+
+echo
+echo "Current partitions:"
+sfdisk -l "$DISK" 2>/dev/null | grep "^$DISK"
+echo
+echo "New partitions:"
+echo "  ${DISK}p1  sectors $BOOT_START-$((ROOT_START - 1))  256 MiB  ext3 boot  (kernel /vmlinux.oct3-mp)"
+echo "  ${DISK}p2  sectors $ROOT_START-$((total - 1))  ext4 root  ($IMAGE)"
+[ "$BACKUP" != none ] && echo "  settings restored on first boot from $BACKUP"
+echo
+echo "THIS ERASES THE WHOLE eMMC. Type yes to continue:"
+read answer
+[ "$answer" = yes ] || die "cancelled, nothing was changed"
+
+echo "writing the partition table"
+sfdisk -q --wipe always --wipe-partitions always "$DISK" <<-EOF || die "sfdisk failed"
+	label: dos
+	unit: sectors
+	start=$BOOT_START, size=$BOOT_SIZE, type=83
+	start=$ROOT_START, type=83
+EOF
+sync
+wait_for "[ -b ${DISK}p1 ] && [ -b ${DISK}p2 ] && [ ! -b ${DISK}p3 ]" ||
+	die "the kernel did not pick up the new partitions (reboot the RAM image and run pa220-install again)"
+[ "$(cat /sys/block/mmcblk0/mmcblk0p1/start)" = $BOOT_START ] &&
+[ "$(cat /sys/block/mmcblk0/mmcblk0p2/start)" = $ROOT_START ] ||
+	die "unexpected partition layout"
+
+echo "formatting ${DISK}p1 (ext3 boot) and ${DISK}p2 (ext4 root)"
+mke2fs -F -q -t ext3 -b 4096 -I 128 -L boot "${DISK}p1" || die "mke2fs p1 failed"
+mkfs.ext4 -F -q -L rootfs "${DISK}p2" || die "mkfs.ext4 p2 failed"
+
+echo "installing the kernel"
+mkdir -p "$WORK/boot"
+mount -t ext3 "${DISK}p1" "$WORK/boot" || die "mount p1 failed"
+tar xf "$WORK/$IMAGE" "$board_dir/kernel" -O > "$WORK/boot/vmlinux.oct3-mp"
+[ -s "$WORK/boot/vmlinux.oct3-mp" ] || { umount "$WORK/boot"; die "writing the kernel failed"; }
+sync
+umount "$WORK/boot"
+
+echo "installing the root filesystem"
+mkdir -p "$WORK/root"
+mount -t ext4 "${DISK}p2" "$WORK/root" || die "mount p2 failed"
+tar xf "$WORK/$IMAGE" "$board_dir/root" -O | tar xzf - -C "$WORK/root" ||
+	{ umount "$WORK/root"; die "unpacking the root filesystem failed"; }
+mkdir -p "$WORK/root/boot"
+[ "$BACKUP" != none ] && cp "$WORK/$BACKUP" "$WORK/root/sysupgrade.tgz"
+sync
+umount "$WORK/root"
+
+echo
+echo "Done. Type reboot. U-Boot must load /vmlinux.oct3-mp from mmc 0:1."

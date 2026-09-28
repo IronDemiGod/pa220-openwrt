@@ -1,0 +1,15 @@
+{
+	"luci-app-pa220": {
+		"description": "Grant access to the PA-220 LED, temperature and network driver settings",
+		"read": {
+			"file": {
+				"/usr/libexec/pa220-temps": [ "exec" ],
+				"/usr/sbin/pa220-net stats": [ "exec" ]
+			},
+			"uci": [ "pa220", "network" ]
+		},
+		"write": {
+			"uci": [ "pa220", "network" ]
+		}
+	}
+}

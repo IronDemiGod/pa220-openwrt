@@ -1,0 +1,3 @@
+# OpenWrt tree created by openwrt/setup.sh
+openwrt/openwrt-pa220/
+# U-Boot build output is covered by u-boot/.gitignore

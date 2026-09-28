@@ -1,0 +1,4 @@
+#!/bin/sh
+# Host compiler wrapper: the 2013 U-Boot host tools need -fcommon and
+# gnu89 to build with a current gcc.
+exec gcc -fcommon -std=gnu89 "$@"

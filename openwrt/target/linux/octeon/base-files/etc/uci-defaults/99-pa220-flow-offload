@@ -1,0 +1,26 @@
+#!/bin/sh
+#
+# PA-220: enable firewall software flow offloading by default. Established
+# routed/NATed connections then bypass most of the netfilter path (bridged
+# traffic is not affected). It remains a checkbox in LuCI -> Network ->
+# Firewall -> General Settings.
+#
+
+. /lib/functions.sh
+
+case "$(board_name)" in
+pan,pa-220)
+	[ -f /etc/config/firewall ] || exit 0
+	uci -q get firewall.@defaults[0] >/dev/null || exit 0
+	# only once, so a later user change survives sysupgrade
+	touch /etc/config/pa220
+	uci -q get pa220.defaults.flow_offload >/dev/null && exit 0
+	uci -q set firewall.@defaults[0].flow_offloading='1'
+	uci -q commit firewall
+	uci -q set pa220.defaults=defaults
+	uci -q set pa220.defaults.flow_offload='1'
+	uci -q commit pa220
+	;;
+esac
+
+exit 0

@@ -1,0 +1,53 @@
+From: PA-220 port
+Subject: MIPS: Octeon: fall back to the legacy boot core mask
+
+The Palo Alto PA-220 U-Boot reports bootinfo version 1.4 but leaves
+garbage in ext_core_mask (seen: 0x3000000000000000) while the legacy
+32-bit core_mask is correct (0xf), so Linux brought up only one CPU.
+On chips with at most 32 cores, use the legacy mask when the two
+disagree, and log the masks for diagnosis.
+---
+--- a/arch/mips/cavium-octeon/setup.c
++++ b/arch/mips/cavium-octeon/setup.c
+@@ -722,6 +722,27 @@
+ 		for (i = 512; i < 1024; i++)
+ 			cvmx_coremask_clear_core(&sysinfo->core_mask, i);
+ 
++	/*
++	 * Some bootloaders (e.g. the Palo Alto PA-220 U-Boot) report bootinfo
++	 * version 1.4 but leave garbage in ext_core_mask while the legacy
++	 * 32-bit core_mask is correct. On chips with at most 32 cores, trust
++	 * the legacy mask whenever the two disagree.
++	 */
++	if (!OCTEON_IS_MODEL(OCTEON_CN78XX) && octeon_bootinfo->core_mask) {
++		bool mismatch = sysinfo->core_mask.coremask_bitmap[0] !=
++				octeon_bootinfo->core_mask;
++
++		for (i = 1; i < CVMX_COREMASK_BMPSZ; i++)
++			if (sysinfo->core_mask.coremask_bitmap[i])
++				mismatch = true;
++		if (mismatch) {
++			memset(&sysinfo->core_mask, 0,
++			       sizeof(sysinfo->core_mask));
++			cvmx_coremask_set64(&sysinfo->core_mask,
++					    octeon_bootinfo->core_mask);
++		}
++	}
++
+ 	sysinfo->exception_base_addr = octeon_bootinfo->exception_base_addr;
+ 	sysinfo->cpu_clock_hz = octeon_bootinfo->eclock_hz;
+ 	sysinfo->dram_data_rate_hz = octeon_bootinfo->dclock_hz * 2;
+--- a/arch/mips/cavium-octeon/smp.c
++++ b/arch/mips/cavium-octeon/smp.c
+@@ -189,6 +189,11 @@
+ 	}
+ #endif
+ 
++	pr_info("Octeon SMP: bootinfo core_mask 0x%x, sysinfo core_mask 0x%llx, boot core %d, %d CPU(s) present\n",
++		octeon_get_boot_coremask(),
++		(unsigned long long)sysinfo->core_mask.coremask_bitmap[0],
++		coreid, cpus);
++
+ 	octeon_smp_hotplug_setup();
+ }
+ 

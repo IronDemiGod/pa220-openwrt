@@ -1,0 +1,595 @@
+From: PA-220 port
+Subject: staging: octeon: in-driver bridge fast path
+
+The PA-220 has no switch chip, so every bridged frame costs an skb
+allocation, the bridge code, a qdisc and an skb free. Forward known
+unicast frames between ports of the same bridge directly from the
+receive work queue entry to the PKO instead: the hardware buffer goes
+out untouched and the PKO frees it back to the packet pool.
+
+The driver learns source MACs itself (4096-entry table per VLAN, 300 s
+ageing) and passes one frame per host up every 60 s so the bridge FDB
+stays current. VLAN filtering bridges (802.1Q) are supported: ingress
+VLAN from the tag or PVID, membership checked on both ports, the tag
+added or removed per the egress untagged flag. It stays off for 802.1ad
+or MST bridges, ports that are not STP-forwarding, isolated or locked,
+when bridge netfilter hooks exist, or while a packet tap is open. Off
+by default; enable with /sys/module/octeon_ethernet/parameters/fastpath,
+counters in fastpath_stats.
+---
+--- a/drivers/staging/octeon/Makefile
++++ b/drivers/staging/octeon/Makefile
+@@ -17,3 +17,4 @@
+ octeon-ethernet-y += ethernet-sgmii.o
+ octeon-ethernet-y += ethernet-spi.o
+ octeon-ethernet-y += ethernet-tx.o
++octeon-ethernet-y += ethernet-fastpath.o
+--- /dev/null
++++ b/drivers/staging/octeon/ethernet-fastpath.c
+@@ -0,0 +1,493 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Bridge fast path for boards without a switch chip (Palo Alto PA-220).
++ *
++ * Known-unicast frames between two ports of the same Linux bridge are sent
++ * straight from the receive work queue entry back to the PKO, without an
++ * skb ever reaching the network stack: the packet buffer goes out as it
++ * came in and the PKO frees it back to the FPA packet pool.
++ *
++ * The driver keeps its own small MAC table (learned from received frames,
++ * aged after 300 s). Everything else goes up to Linux as before: broadcast,
++ * multicast, unknown destinations, traffic for the host itself, and any
++ * port that is not a plain forwarding bridge port. Every 60 s (and when a
++ * host is first seen or moves) one frame per source address is also passed
++ * up, so the bridge keeps its own FDB current.
++ *
++ * VLAN filtering bridges (802.1Q) are supported: the ingress VLAN is the
++ * frame's tag or the port PVID, both ports must be members, and the tag is
++ * added or removed according to the egress port's untagged flag. The MAC
++ * table is per VLAN.
++ *
++ * The fast path stays off for a port when its bridge uses 802.1ad or MST,
++ * the port is not in STP forwarding state, is isolated or locked, bridge
++ * netfilter hooks exist (nftables bridge family, ebtables), or a packet
++ * tap (tcpdump) is open. The port state is re-read every second and on
++ * netdev events.
++ *
++ * /sys/module/octeon_ethernet/parameters/fastpath        0/1
++ * /sys/module/octeon_ethernet/parameters/fastpath_stats  counters, ports
++ */
++
++#include <linux/etherdevice.h>
++#include <linux/if_bridge.h>
++#include <linux/if_vlan.h>
++#include <linux/jiffies.h>
++#include <linux/moduleparam.h>
++#include <linux/netdevice.h>
++#include <linux/netfilter.h>
++#include <linux/percpu.h>
++#include <linux/rcupdate.h>
++#include <linux/rtnetlink.h>
++#include <linux/unaligned.h>
++#include <linux/workqueue.h>
++
++#include "octeon-ethernet.h"
++#include "ethernet-defines.h"
++#include "ethernet-util.h"
++
++#define FP_BITS		12
++#define FP_AGE		(300 * HZ)
++#define FP_REFRESH	(60 * HZ)
++/* Frames queued to the PKO per port by the fast path */
++#define FP_MAX_QUEUED	256
++/* Port index 1..15 in the MAC table key, 0 = empty slot */
++#define FP_MAX_PORTS	15
++
++/*
++ * key = MAC << 16 | VID << 4 | port index: one 64-bit word, so a lookup
++ * never sees half of an update from another core
++ */
++struct fp_entry {
++	u64 key;
++	unsigned long seen;
++	unsigned long slow;	/* last frame passed up to the bridge */
++};
++
++struct fp_stats {
++	u64 fwd;
++	u64 learn;
++	u64 miss;
++	u64 busy;
++	u64 tap;
++};
++
++static struct fp_entry fp_table[1 << FP_BITS];
++static DEFINE_PER_CPU(struct fp_stats, fp_stats);
++static int fp_port[FP_MAX_PORTS + 1];	/* index -> IPD port */
++static bool fastpath;
++static bool fp_ready;
++
++static void cvm_oct_fp_update(struct work_struct *work);
++static DECLARE_DELAYED_WORK(fp_work, cvm_oct_fp_update);
++
++static inline u64 fp_key(u64 mac, int vid, int idx)
++{
++	return mac << 16 | (u64)vid << 4 | idx;
++}
++
++static inline struct fp_entry *fp_slot(u64 mac, int vid)
++{
++	u64 h = (mac << 12 | vid) * 0x9e3779b97f4a7c15ULL;
++
++	return &fp_table[h >> (64 - FP_BITS)];
++}
++
++/* Forget the hosts learned on port index @idx (0: all) */
++static void fp_flush(int idx)
++{
++	int i;
++
++	for (i = 0; i < ARRAY_SIZE(fp_table); i++) {
++		u64 k = READ_ONCE(fp_table[i].key);
++
++		if (!idx || (k & 0xf) == idx)
++			WRITE_ONCE(fp_table[i].key, 0);
++	}
++}
++
++/* Send a received buffer out of @dev; the PKO frees it to the pool */
++static int cvm_oct_fp_xmit(struct net_device *dev, union cvmx_buf_ptr bp,
++			   int len)
++{
++	struct octeon_ethernet *priv = netdev_priv(dev);
++	union cvmx_pko_command_word0 pko_command;
++	unsigned long flags;
++	int ret;
++
++	if (cvmx_fau_fetch_and_add32(priv->fp_fau, 1) >= FP_MAX_QUEUED) {
++		cvmx_fau_atomic_add32(priv->fp_fau, -1);
++		return -EBUSY;
++	}
++
++	pko_command.u64 = 0;
++#ifdef __LITTLE_ENDIAN
++	pko_command.s.le = 1;
++#endif
++	pko_command.s.n2 = 1;	/* Don't pollute L2 with the outgoing packet */
++	pko_command.s.segs = 1;
++	pko_command.s.total_bytes = len;
++	/* The PKO decrements our queued count once the frame is sent */
++	pko_command.s.reg0 = priv->fp_fau;
++	pko_command.s.size0 = CVMX_FAU_OP_SIZE_32;
++	pko_command.s.subone0 = 1;
++	/* dontfree = 0: the buffer goes back to the FPA packet pool */
++
++	/* Same lock as cvm_oct_xmit() for this PKO queue */
++	spin_lock_irqsave(&priv->tx_free_list[0].lock, flags);
++	cvmx_pko_send_packet_prepare(priv->port, priv->queue,
++				     CVMX_PKO_LOCK_NONE);
++	ret = cvmx_pko_send_packet_finish(priv->port, priv->queue,
++					  pko_command, bp, CVMX_PKO_LOCK_NONE);
++	spin_unlock_irqrestore(&priv->tx_free_list[0].lock, flags);
++
++	if (unlikely(ret)) {
++		cvmx_fau_atomic_add32(priv->fp_fau, -1);
++		return -EBUSY;
++	}
++	return 0;
++}
++
++/**
++ * cvm_oct_fastpath - try to forward a received frame without Linux
++ * @work: work queue entry of a frame that sits in one hardware buffer
++ * @port: IPD port it arrived on
++ *
++ * Returns true if the frame was consumed (sent, or dropped after its VLAN
++ * tag was changed; the work entry is freed), false if it must go up the
++ * normal receive path unchanged.
++ */
++bool cvm_oct_fastpath(struct cvmx_wqe *work, int port)
++{
++	struct net_device *in, *out;
++	struct octeon_ethernet *ipriv, *opriv;
++	struct bridge_vlan_info vinfo;
++	union cvmx_buf_ptr bp;
++	struct fp_entry *e;
++	unsigned long now;
++	u8 *data, *start;
++	u64 src, dst, k;
++	int br, idx, oidx, len, vid = 0;
++	bool vlan, tagged = false, otagged = false;
++	bool ret = false;
++
++	if (!READ_ONCE(fastpath) || port >= CVMX_PIP_NUM_INPUT_PORTS)
++		return false;
++	in = cvm_oct_device[port];
++	if (!in)
++		return false;
++	ipriv = netdev_priv(in);
++	br = READ_ONCE(ipriv->fp_br);
++	idx = ipriv->fp_idx;
++	len = work->word1.len;
++	if (!br || !idx || len < ETH_HLEN)
++		return false;
++	vlan = READ_ONCE(ipriv->fp_vlan);
++
++	data = cvmx_phys_to_ptr(work->packet_ptr.s.addr);
++	if (unlikely(data[ETH_ALEN] & 1))
++		return false;	/* multicast source: invalid, let Linux see it */
++	src = ether_addr_to_u64(data + ETH_ALEN);
++	dst = ether_addr_to_u64(data);
++	now = jiffies;
++
++	rcu_read_lock();
++
++	/* Ingress VLAN: the tag, or the port PVID for untagged frames */
++	if (vlan) {
++		u16 proto = get_unaligned_be16(data + 2 * ETH_ALEN);
++		u16 pvid;
++
++		if (proto == ETH_P_8021Q) {
++			if (len < VLAN_ETH_HLEN)
++				goto out;
++			vid = get_unaligned_be16(data + ETH_HLEN) & VLAN_VID_MASK;
++			if (!vid)
++				goto out;	/* priority tag */
++			tagged = true;
++		} else if (proto == ETH_P_8021AD) {
++			goto out;
++		} else {
++			if (br_vlan_get_pvid_rcu(in, &pvid) || !pvid)
++				goto out;
++			vid = pvid;
++		}
++		if (br_vlan_get_info_rcu(in, vid, &vinfo))
++			goto out;	/* not a member: the bridge drops it */
++	}
++
++	/* Learn the source */
++	e = fp_slot(src, vid);
++	k = fp_key(src, vid, idx);
++	if (READ_ONCE(e->key) != k) {
++		/* new or moved host: the bridge learns it from this frame */
++		WRITE_ONCE(e->seen, now);
++		WRITE_ONCE(e->slow, now);
++		WRITE_ONCE(e->key, k);
++		this_cpu_inc(fp_stats.learn);
++		goto out;
++	}
++	if (time_after(now, READ_ONCE(e->seen) + HZ))
++		WRITE_ONCE(e->seen, now);
++	if (time_after(now, READ_ONCE(e->slow) + FP_REFRESH)) {
++		WRITE_ONCE(e->slow, now);
++		this_cpu_inc(fp_stats.learn);
++		goto out;
++	}
++
++	if (data[0] & 1)
++		goto out;	/* broadcast / multicast */
++
++	/* Look up the destination */
++	e = fp_slot(dst, vid);
++	k = READ_ONCE(e->key);
++	oidx = k & 0xf;
++	if ((k >> 4) != (dst << 12 | vid) || !oidx ||
++	    time_after(now, READ_ONCE(e->seen) + FP_AGE)) {
++		this_cpu_inc(fp_stats.miss);
++		goto out;
++	}
++	if (oidx == idx)
++		goto out;
++	out = cvm_oct_device[fp_port[oidx]];
++	if (!out)
++		goto out;
++	opriv = netdev_priv(out);
++	if (READ_ONCE(opriv->fp_br) != br ||
++	    !netif_running(in) || !netif_running(out) ||
++	    !netif_carrier_ok(out))
++		goto out;
++
++	/* Egress VLAN membership and tagging */
++	if (vlan) {
++		if (br_vlan_get_info_rcu(out, vid, &vinfo))
++			goto out;
++		otagged = !(vinfo.flags & BRIDGE_VLAN_INFO_UNTAGGED);
++	}
++	if (len - (tagged ? VLAN_HLEN : 0) > out->mtu + ETH_HLEN)
++		goto out;
++	if (dev_nit_active(in) || dev_nit_active(out)) {
++		this_cpu_inc(fp_stats.tap);
++		goto out;
++	}
++
++	bp = work->packet_ptr;
++	if (tagged == otagged) {
++		/* frame unchanged: if the queue is full, Linux handles it */
++		if (cvm_oct_fp_xmit(out, bp, len)) {
++			this_cpu_inc(fp_stats.busy);
++			goto out;
++		}
++	} else {
++		start = cvm_oct_get_buffer_ptr(bp);
++		if (otagged) {
++			/* add the tag in the headroom before the frame */
++			if (data - VLAN_HLEN < start)
++				goto out;
++			memmove(data - VLAN_HLEN, data, 2 * ETH_ALEN);
++			data -= VLAN_HLEN;
++			put_unaligned_be16(ETH_P_8021Q, data + 2 * ETH_ALEN);
++			put_unaligned_be16(vid, data + ETH_HLEN);
++			len += VLAN_HLEN;
++			bp.s.size += VLAN_HLEN;
++		} else {
++			/* remove the tag */
++			memmove(data + VLAN_HLEN, data, 2 * ETH_ALEN);
++			data += VLAN_HLEN;
++			len -= VLAN_HLEN;
++			bp.s.size -= VLAN_HLEN;
++		}
++		bp.s.addr = cvmx_ptr_to_phys(data);
++		bp.s.back = (bp.s.addr >> 7) - (cvmx_ptr_to_phys(start) >> 7);
++		/* the frame is modified now: it can't go up to Linux any more */
++		if (cvm_oct_fp_xmit(out, bp, len)) {
++			this_cpu_inc(fp_stats.busy);
++			cvm_oct_free_work(work);
++			ret = true;
++			goto out;
++		}
++	}
++	cvmx_fpa_free(work, CVMX_FPA_WQE_POOL, 1);
++	this_cpu_inc(fp_stats.fwd);
++	ret = true;
++out:
++	rcu_read_unlock();
++	return ret;
++}
++
++/* Bridge ifindex if @dev may use the fast path, else 0 (RTNL held) */
++static int cvm_oct_fp_bridge(struct net_device *dev, bool *vlan)
++{
++	struct net_device *br;
++	struct net *net = dev_net(dev);
++	u16 proto;
++	int h;
++
++	*vlan = false;
++	if (!fastpath || !netif_running(dev) || !netif_is_bridge_port(dev))
++		return 0;
++	br = netdev_master_upper_dev_get(dev);
++	if (!br || !netif_is_bridge_master(br) || !netif_running(br))
++		return 0;
++	if (br_vlan_enabled(br)) {
++		if (br_vlan_get_proto(br, &proto) || proto != ETH_P_8021Q ||
++		    br_mst_enabled(br))
++			return 0;
++		*vlan = true;
++	}
++	if (br_port_get_stp_state(dev) != BR_STATE_FORWARDING ||
++	    br_port_flag_is_set(dev, BR_ISOLATED | BR_PORT_LOCKED))
++		return 0;
++	for (h = 0; h < ARRAY_SIZE(net->nf.hooks_bridge); h++)
++		if (rcu_access_pointer(net->nf.hooks_bridge[h]))
++			return 0;
++	return br->ifindex;
++}
++
++static void cvm_oct_fp_update(struct work_struct *work)
++{
++	int port;
++
++	rtnl_lock();
++	for (port = 0; port < CVMX_PIP_NUM_INPUT_PORTS; port++) {
++		struct net_device *dev = cvm_oct_device[port];
++		struct octeon_ethernet *priv;
++		bool vlan;
++		int br;
++
++		if (!dev)
++			continue;
++		priv = netdev_priv(dev);
++		if (!priv->fp_idx)
++			continue;
++		br = cvm_oct_fp_bridge(dev, &vlan);
++		if (priv->fp_br != br || priv->fp_vlan != vlan) {
++			/* stop using the port before its hosts are forgotten */
++			WRITE_ONCE(priv->fp_br, 0);
++			fp_flush(priv->fp_idx);
++			WRITE_ONCE(priv->fp_vlan, vlan);
++			WRITE_ONCE(priv->fp_br, br);
++		}
++	}
++	rtnl_unlock();
++
++	if (fastpath)
++		schedule_delayed_work(&fp_work, HZ);
++}
++
++static int cvm_oct_fp_netdev_event(struct notifier_block *nb,
++				   unsigned long event, void *ptr)
++{
++	switch (event) {
++	case NETDEV_UP:
++	case NETDEV_GOING_DOWN:
++	case NETDEV_DOWN:
++	case NETDEV_CHANGE:
++	case NETDEV_CHANGEUPPER:
++	case NETDEV_UNREGISTER:
++		if (fastpath)
++			mod_delayed_work(system_wq, &fp_work, 0);
++		break;
++	}
++	return NOTIFY_DONE;
++}
++
++static struct notifier_block cvm_oct_fp_nb = {
++	.notifier_call = cvm_oct_fp_netdev_event,
++};
++
++static int fastpath_set(const char *val, const struct kernel_param *kp)
++{
++	int ret = param_set_bool(val, kp);
++
++	if (ret || !fp_ready)
++		return ret;
++	fp_flush(0);
++	/* also clears the port states when switched off */
++	mod_delayed_work(system_wq, &fp_work, 0);
++	return 0;
++}
++
++static const struct kernel_param_ops fastpath_ops = {
++	.set = fastpath_set,
++	.get = param_get_bool,
++};
++module_param_cb(fastpath, &fastpath_ops, &fastpath, 0644);
++MODULE_PARM_DESC(fastpath, "\n"
++	"\tForward known unicast frames between ports of the same bridge\n"
++	"\tin the driver, bypassing the network stack (default off).\n");
++
++static int fastpath_stats_get(char *buf, const struct kernel_param *kp)
++{
++	struct fp_stats sum = {};
++	int len, cpu, port;
++
++	for_each_possible_cpu(cpu) {
++		const struct fp_stats *s = per_cpu_ptr(&fp_stats, cpu);
++
++		sum.fwd += s->fwd;
++		sum.learn += s->learn;
++		sum.miss += s->miss;
++		sum.busy += s->busy;
++		sum.tap += s->tap;
++	}
++	len = scnprintf(buf, PAGE_SIZE,
++			"forwarded %llu\nto_bridge %llu\nmiss %llu\nbusy %llu\ntap %llu\nports",
++			sum.fwd, sum.learn, sum.miss, sum.busy, sum.tap);
++	for (port = 0; port < CVMX_PIP_NUM_INPUT_PORTS; port++) {
++		struct net_device *dev = cvm_oct_device[port];
++		struct octeon_ethernet *priv;
++
++		if (!dev)
++			continue;
++		priv = netdev_priv(dev);
++		if (READ_ONCE(priv->fp_br))
++			len += scnprintf(buf + len, PAGE_SIZE - len, " %s%s",
++					 dev->name,
++					 READ_ONCE(priv->fp_vlan) ? "(vlan)" : "");
++	}
++	len += scnprintf(buf + len, PAGE_SIZE - len, "\n");
++	return len;
++}
++
++static const struct kernel_param_ops fastpath_stats_ops = {
++	.get = fastpath_stats_get,
++};
++module_param_cb(fastpath_stats, &fastpath_stats_ops, NULL, 0444);
++MODULE_PARM_DESC(fastpath_stats, "Bridge fast path counters and ports");
++
++void cvm_oct_fastpath_init(void)
++{
++	int port, n = 0;
++
++	/* Give each port a small index for the MAC table key */
++	for (port = 0; port < CVMX_PIP_NUM_INPUT_PORTS; port++) {
++		struct net_device *dev = cvm_oct_device[port];
++		struct octeon_ethernet *priv;
++
++		if (!dev)
++			continue;
++		priv = netdev_priv(dev);
++		if (n == FP_MAX_PORTS) {
++			netdev_info(dev, "no bridge fast path (more than %d ports)\n",
++				    FP_MAX_PORTS);
++			continue;
++		}
++		priv->fp_idx = ++n;
++		fp_port[n] = port;
++	}
++
++	if (register_netdevice_notifier(&cvm_oct_fp_nb))
++		pr_warn("octeon-ethernet: no netdev notifier, fast path port states update once a second only\n");
++	fp_ready = true;
++	if (fastpath)
++		schedule_delayed_work(&fp_work, 0);
++}
++
++void cvm_oct_fastpath_exit(void)
++{
++	fp_ready = false;
++	WRITE_ONCE(fastpath, false);
++	unregister_netdevice_notifier(&cvm_oct_fp_nb);
++	cancel_delayed_work_sync(&fp_work);
++}
+--- a/drivers/staging/octeon/ethernet-rx.c
++++ b/drivers/staging/octeon/ethernet-rx.c
+@@ -344,6 +344,10 @@
+ 				continue;
+ 		}
+ 
++		/* Bridged known unicast: straight back out, no skb */
++		if (likely(skb_in_hw) && cvm_oct_fastpath(work, port))
++			continue;
++
+ 		/*
+ 		 * We can only use the zero copy path if skbuffs are
+ 		 * in the FPA pool and the packet fits in a single
+--- a/drivers/staging/octeon/ethernet.c
++++ b/drivers/staging/octeon/ethernet.c
+@@ -1001,8 +1001,22 @@
+ 		}
+ 	}
+ 
++	/* One FAU counter per port for frames queued by the fast path */
++	for (i = 0; i < CVMX_PIP_NUM_INPUT_PORTS; i++) {
++		struct net_device *dev = cvm_oct_device[i];
++		struct octeon_ethernet *priv;
++
++		if (!dev)
++			continue;
++		priv = netdev_priv(dev);
++		fau -= sizeof(u32);
++		priv->fp_fau = fau;
++		cvmx_fau_atomic_write32(priv->fp_fau, 0);
++	}
++
+ 	cvm_oct_tx_initialize();
+ 	cvm_oct_rx_initialize();
++	cvm_oct_fastpath_init();
+ 
+ 	/*
+ 	 * 150 uS: about 10 1500-byte packets at 1GE.
+@@ -1018,6 +1032,8 @@
+ {
+ 	int port;
+ 
++	cvm_oct_fastpath_exit();
++
+ 	cvmx_ipd_disable();
+ 
+ 	atomic_inc_return(&cvm_oct_poll_queue_stopping);
+--- a/drivers/staging/octeon/octeon-ethernet.h
++++ b/drivers/staging/octeon/octeon-ethernet.h
+@@ -53,6 +53,14 @@
+ 	int queue;
+ 	/* Hardware fetch and add to count outstanding tx buffers */
+ 	int fau;
++	/*
++	 * Fast path: frames queued to the PKO, bridge ifindex (0 = off),
++	 * bridge VLAN filtering, MAC table port index (0 = none)
++	 */
++	int fp_fau;
++	int fp_br;
++	bool fp_vlan;
++	int fp_idx;
+ 	/* My netdev. */
+ 	struct net_device *netdev;
+ 	/*
+@@ -104,4 +112,8 @@
+ 
+ extern int rx_napi_weight;
+ 
++bool cvm_oct_fastpath(struct cvmx_wqe *work, int port);
++void cvm_oct_fastpath_init(void);
++void cvm_oct_fastpath_exit(void);
++
+ #endif

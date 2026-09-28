@@ -1,0 +1,33 @@
+From: PA-220 port
+Subject: staging: octeon: make loopN netdevs optional
+
+The LOOP interface ports are internal loopback only and just clutter
+the interface list. Do not create Linux netdevs for them unless
+octeon_ethernet.loop_netdevs=1 is given. The hardware setup of the
+loopback ports is unchanged.
+---
+--- a/drivers/staging/octeon/ethernet.c
++++ b/drivers/staging/octeon/ethernet.c
+@@ -72,6 +72,13 @@
+ 	"\tlinux kernel. You must specify pow_send_group along with\n"
+ 	"\tthis option.");
+ 
++static bool loop_netdevs;
++module_param(loop_netdevs, bool, 0444);
++MODULE_PARM_DESC(loop_netdevs, "\n"
++	"\tWhen set, create loopN network devices for the internal\n"
++	"\tloopback (LOOP) interface. The loopback ports are set up in\n"
++	"\thardware either way; this only controls the Linux devices.");
++
+ char pow_send_list[128] = "";
+ module_param_string(pow_send_list, pow_send_list, sizeof(pow_send_list), 0444);
+ MODULE_PARM_DESC(pow_send_list, "\n"
+@@ -895,6 +902,8 @@
+ 				break;
+ 
+ 			case CVMX_HELPER_INTERFACE_MODE_LOOP:
++				if (!loop_netdevs)
++					break;
+ 				dev->netdev_ops = &cvm_oct_npi_netdev_ops;
+ 				strscpy(dev->name, "loop%d", sizeof(dev->name));
+ 				break;

@@ -1,0 +1,35 @@
+#!/bin/sh
+#
+# PA-220: default LED settings (all on, no night schedule). Existing
+# settings (e.g. restored after sysupgrade) are kept.
+#
+
+. /lib/functions.sh
+
+case "$(board_name)" in
+pan,pa-220)
+	touch /etc/config/pa220
+	# older settings without the jack LED modes: add the defaults
+	if uci -q get pa220.leds >/dev/null; then
+		uci -q get pa220.leds.left >/dev/null || uci set pa220.leds.left='0'
+		uci -q get pa220.leds.right >/dev/null || uci set pa220.leds.right='6'
+		uci -q get pa220.leds.night_ha >/dev/null || uci set pa220.leds.night_ha='1'
+		uci commit pa220
+		exit 0
+	fi
+	uci -q batch <<-EOT
+		set pa220.leds=leds
+		set pa220.leds.jacks='1'
+		set pa220.leds.left='0'
+		set pa220.leds.right='6'
+		set pa220.leds.front='1'
+		set pa220.leds.night_off='0'
+		set pa220.leds.night_start='23:00'
+		set pa220.leds.night_end='07:00'
+		set pa220.leds.night_ha='1'
+		commit pa220
+	EOT
+	;;
+esac
+
+exit 0

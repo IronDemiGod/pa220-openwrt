@@ -1,0 +1,17 @@
+#!/bin/sh
+#
+# PA-220: /etc/init.d/boot sleeps 1 s on every boot while
+# /etc/config/wireless is missing ("compat for bcm47xx and mvebu"). The
+# PA-220 has no wireless, so the file never appears on its own; an empty one
+# skips the wait from the second boot on (it is kept across sysupgrade).
+#
+
+. /lib/functions.sh
+
+case "$(board_name)" in
+pan,pa-220)
+	[ -f /etc/config/wireless ] || touch /etc/config/wireless
+	;;
+esac
+
+exit 0

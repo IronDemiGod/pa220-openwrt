@@ -1,0 +1,4 @@
+openwrt/   GPL-2.0 (OpenWrt build files, scripts, kernel patches)
+u-boot/    GPL-2.0+ (U-Boot, see u-boot/COPYING and u-boot/Licenses/);
+           the Cavium OCTEON SDK "executive" files (cvmx-*) are under the
+           Cavium BSD-style licence in Cavium-BSD

@@ -1,0 +1,168 @@
+#!/bin/sh
+#
+# PA-220 LED control. Settings in /etc/config/pa220, section "leds":
+#   jacks       1/0  front-port jack LEDs (ports 1-8) on/off
+#   left, right      jack LED modes (88E1680 LED codes, one hex digit each):
+#                    left:  0 link, 1 link+blink act, 2 speed blinks, 3 act,
+#                           4 blink act, 5 tx, 6 copper link, 7 1000 link,
+#                           8 off, 9 on, b blink
+#                    right: 0 copper link, 1 link+blink act, 2 link+blink rx,
+#                           3 act, 4 blink act, 5 100 link, 6 100/1000 link,
+#                           7 100 link, 8 off, 9 on, b blink
+#   front       1/0  front-panel LEDs HA, ALM, STAT, TEMP on/off
+#   night_off   1/0  switch all of them off between night_start and night_end
+#   night_start HH:MM
+#   night_end   HH:MM (may be earlier than night_start: wraps past midnight)
+#   night_ha    1/0  HA solid green during the night period ("night mode"
+#                    indicator; not when the LEDs are switched off by hand)
+# PWR is hardwired. ALM red keeps its kernel-panic trigger at all times.
+#
+# pa220-leds on|off     set jacks + front on/off (saved) and apply
+# pa220-leds status     show settings and the current state
+# pa220-leds apply      apply the settings once
+# pa220-leds daemon     apply now and every 30 s (used by /etc/init.d/pa220-leds)
+#
+
+JACK=/sys/module/pa220/parameters/jack_leds
+JACK_FUNC=/sys/module/pa220/parameters/jack_led_func
+FRONT_LEDS="green:ha orange:ha green:alarm red:alarm green:status orange:status green:temp orange:temp"
+SAVE=/tmp/pa220-leds
+OFF_FLAG=/tmp/pa220-leds.off
+NIGHT_FLAG=/tmp/pa220-leds.night
+
+cfg() { uci -q get pa220.leds.$1 || echo "$2"; }
+
+to_min() {
+	local h=${1%%:*} m=${1##*:}
+	h=${h#0}; m=${m#0}
+	echo $(( ${h:-0} * 60 + ${m:-0} ))
+}
+
+in_night() {
+	[ "$(cfg night_off 0)" = 1 ] || return 1
+	local s e now
+	s=$(to_min "$(cfg night_start 23:00)")
+	e=$(to_min "$(cfg night_end 07:00)")
+	now=$(to_min "$(date +%H:%M)")
+	[ "$s" = "$e" ] && return 1
+	if [ "$s" -lt "$e" ]; then
+		[ "$now" -ge "$s" ] && [ "$now" -lt "$e" ]
+	else
+		[ "$now" -ge "$s" ] || [ "$now" -lt "$e" ]
+	fi
+}
+
+led_trigger() { sed -n 's/.*\[\(.*\)\].*/\1/p' "/sys/class/leds/$1/trigger" 2>/dev/null; }
+
+set_led() {
+	[ -d "/sys/class/leds/$1" ] || return 0
+	echo none > "/sys/class/leds/$1/trigger" 2>/dev/null
+	echo "$2" > "/sys/class/leds/$1/brightness" 2>/dev/null
+}
+
+is_ha() { case "$1" in green:ha|orange:ha) return 0 ;; esac; return 1; }
+
+# $1 = 1: HA solid green as the night mode indicator
+front_off() {
+	local night=$1 l d trig br
+	mkdir -p "$SAVE"
+	touch "$OFF_FLAG"
+	for l in $FRONT_LEDS; do
+		d=/sys/class/leds/$l
+		[ -d "$d" ] || continue
+		# while the night indicator is lit, HA shows our state, not the user's
+		is_ha "$l" && [ -e "$NIGHT_FLAG" ] && continue
+		trig=$(led_trigger "$l")
+		[ "$trig" = panic ] && continue
+		br=$(cat "$d/brightness" 2>/dev/null)
+		# remember the latest real state (something may have changed it)
+		if [ "$trig" != none ] || [ "$br" != 0 ]; then
+			echo "$trig $br" > "$SAVE/$l"
+			echo none > "$d/trigger"
+		fi
+		# always write: leds-syscon reports 0 for a DT default-state "on"
+		# LED (TEMP green) that is actually lit
+		echo 0 > "$d/brightness"
+	done
+	if [ "$night" = 1 ]; then
+		touch "$NIGHT_FLAG"
+		set_led orange:ha 0
+		set_led green:ha 1
+	elif [ -e "$NIGHT_FLAG" ]; then
+		# night over (or indicator disabled) but LEDs still off: HA off too
+		rm -f "$NIGHT_FLAG"
+		set_led green:ha 0
+		set_led orange:ha 0
+	fi
+}
+
+front_on() {
+	local l d trig br
+	[ -e "$OFF_FLAG" ] || return 0
+	if [ -e "$NIGHT_FLAG" ]; then
+		set_led green:ha 0
+		set_led orange:ha 0
+		rm -f "$NIGHT_FLAG"
+	fi
+	for l in $FRONT_LEDS; do
+		d=/sys/class/leds/$l
+		[ -f "$SAVE/$l" ] || continue
+		read -r trig br < "$SAVE/$l"
+		echo "$trig" > "$d/trigger" 2>/dev/null
+		[ "$trig" = none ] && echo "${br:-0}" > "$d/brightness" 2>/dev/null
+		rm -f "$SAVE/$l"
+	done
+	rm -f "$OFF_FLAG"
+}
+
+apply() {
+	local night=0 jacks front ha
+	in_night && night=1
+	jacks=$(cfg jacks 1); front=$(cfg front 1)
+	[ $night = 1 ] && jacks=0 && front=0
+
+	if [ -w "$JACK_FUNC" ]; then
+		func="0x$(cfg right 6)$(cfg left 0)"
+		[ "$(cat "$JACK_FUNC")" = "$func" ] ||
+			echo "$func" > "$JACK_FUNC" ||
+			logger -t pa220-leds "invalid jack LED modes left=$(cfg left 0) right=$(cfg right 6)"
+	fi
+	if [ -w "$JACK" ]; then
+		want=Y; [ "$jacks" = 1 ] || want=N
+		[ "$(cat "$JACK")" = "$want" ] || echo "$want" > "$JACK"
+	fi
+
+	ha=0; [ $night = 1 ] && [ "$(cfg night_ha 1)" = 1 ] && ha=1
+	if [ "$front" = 1 ]; then front_on; else front_off $ha; fi
+}
+
+status() {
+	echo "settings: jacks=$(cfg jacks 1) left=$(cfg left 0) right=$(cfg right 6) front=$(cfg front 1)" \
+		"night_off=$(cfg night_off 0) night=$(cfg night_start 23:00)-$(cfg night_end 07:00)"
+	echo "time now: $(date +%H:%M)$(in_night && echo ' (night period)')"
+	echo "jack LEDs: $([ "$(cat "$JACK" 2>/dev/null)" = Y ] && echo on || echo off)," \
+		"modes $(cat "$JACK_FUNC" 2>/dev/null) (0x<right><left>)"
+	echo "front LEDs: $([ -e "$OFF_FLAG" ] && echo off || echo on)$([ -e "$NIGHT_FLAG" ] && echo ' (night mode, HA green)')"
+}
+
+set_both() {
+	uci -q set pa220.leds=leds
+	uci set pa220.leds.jacks="$1"
+	uci set pa220.leds.front="$1"
+	uci commit pa220
+	apply
+}
+
+case "$1" in
+on)	set_both 1 ;;
+off)	set_both 0 ;;
+apply)	apply ;;
+status)	status ;;
+daemon)
+	while :; do
+		apply
+		sleep 30
+	done
+	;;
+*)	echo "usage: pa220-leds on|off|status|apply" >&2; exit 1 ;;
+esac

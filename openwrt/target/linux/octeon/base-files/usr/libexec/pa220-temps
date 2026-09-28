@@ -1,0 +1,24 @@
+#!/bin/sh
+#
+# PA-220 temperature readings, one line per channel (tab separated):
+# <sensor> <channel> <label> <millidegrees C> <fault 0/1>
+#
+
+for h in /sys/class/hwmon/hwmon*; do
+	name=$(cat "$h/name" 2>/dev/null) || continue
+	for t in "$h"/temp*_input; do
+		[ -r "$t" ] || continue
+		chan=$(basename "${t%_input}")
+		label=$(cat "${t%_input}_label" 2>/dev/null)
+		if [ -z "$label" ]; then
+			case "$name/$chan" in
+			tmp421/temp1) label="Board (TMP421)" ;;
+			tmp421/temp2) label="CPU die (TMP421 remote diode)" ;;
+			*) label="$name $chan" ;;
+			esac
+		fi
+		val=$(cat "$t" 2>/dev/null) || continue
+		fault=$(cat "${t%_input}_fault" 2>/dev/null)
+		printf '%s\t%s\t%s\t%s\t%s\n' "$name" "$chan" "$label" "$val" "${fault:-0}"
+	done
+done

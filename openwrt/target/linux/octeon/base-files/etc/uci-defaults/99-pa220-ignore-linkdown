@@ -1,0 +1,20 @@
+#!/bin/sh
+#
+# PA-220: ignore routes on ports without link. The MGT port and the front
+# ports are often configured in the same subnet; without this the kernel
+# keeps using the route of an unplugged port (e.g. static mgmt) and replies
+# are sent into the dead port. Applied by /etc/init.d/sysctl at every boot.
+#
+
+. /lib/functions.sh
+
+case "$(board_name)" in
+pan,pa-220)
+	cat > /etc/sysctl.d/90-pa220-ignore-linkdown.conf <<-EOT
+		net.ipv4.conf.all.ignore_routes_with_linkdown=1
+		net.ipv6.conf.all.ignore_routes_with_linkdown=1
+	EOT
+	;;
+esac
+
+exit 0

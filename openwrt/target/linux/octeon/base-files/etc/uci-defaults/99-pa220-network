@@ -1,0 +1,49 @@
+#!/bin/sh
+#
+# PA-220 first-boot network (board.d/01_network creates the interfaces):
+#   lan  = br-lan (lan1-8) 192.168.1.2/24, gateway + DNS via the existing
+#          router: gateway 192.168.1.1, DNS 1.1.1.1; no DHCP/RA server on
+#          it (the router already does that)
+#   mgmt = 192.168.2.1/24, DHCP pool .100-.149 for a directly connected PC
+# Only on a freshly generated config; settings kept over a sysupgrade or
+# restored from a backup are left alone.
+#
+
+. /lib/functions.sh
+
+case "$(board_name)" in
+pan,pa-220)
+	[ "$(uci -q get network.lan.ipaddr)" = "192.168.1.2/24" ] || exit 0
+	[ "$(uci -q get network.mgmt.ipaddr)" = "192.168.2.1/24" ] || exit 0
+	[ -z "$(uci -q get network.lan.gateway)" ] || exit 0
+	touch /etc/config/pa220
+	uci -q get pa220.defaults.network >/dev/null && exit 0
+
+	uci -q batch <<-EOT
+		set network.lan.gateway='192.168.1.1'
+		add_list network.lan.dns='1.1.1.1'
+		commit network
+	EOT
+
+	[ -f /etc/config/dhcp ] && uci -q batch <<-EOT
+		set dhcp.lan=dhcp
+		set dhcp.lan.interface='lan'
+		set dhcp.lan.ignore='1'
+		set dhcp.lan.dhcpv4='disabled'
+		set dhcp.lan.dhcpv6='disabled'
+		set dhcp.lan.ra='disabled'
+		set dhcp.mgmt=dhcp
+		set dhcp.mgmt.interface='mgmt'
+		set dhcp.mgmt.start='100'
+		set dhcp.mgmt.limit='50'
+		set dhcp.mgmt.leasetime='12h'
+		commit dhcp
+	EOT
+
+	uci -q set pa220.defaults=defaults
+	uci -q set pa220.defaults.network='1'
+	uci -q commit pa220
+	;;
+esac
+
+exit 0

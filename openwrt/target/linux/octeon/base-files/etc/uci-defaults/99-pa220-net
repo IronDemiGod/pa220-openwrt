@@ -1,0 +1,25 @@
+#!/bin/sh
+#
+# PA-220: default network driver tuning (LuCI Network -> PA-220 Performance):
+# bridge fast path on, the rest as the driver's own defaults. Existing
+# settings are kept.
+#
+
+. /lib/functions.sh
+
+case "$(board_name)" in
+pan,pa-220)
+	touch /etc/config/pa220
+	uci -q get pa220.net >/dev/null && exit 0
+	uci -q batch <<-EOT
+		set pa220.net=net
+		set pa220.net.fastpath='1'
+		set pa220.net.rx_gro='1'
+		set pa220.net.rx_irq_delay='1'
+		set pa220.net.rx_irq_pkts='0'
+		commit pa220
+	EOT
+	;;
+esac
+
+exit 0

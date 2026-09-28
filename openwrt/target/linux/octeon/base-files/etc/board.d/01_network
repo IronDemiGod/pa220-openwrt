@@ -1,0 +1,41 @@
+#
+# Copyright (C) 2014-2025 OpenWrt.org
+#
+
+. /lib/functions/uci-defaults.sh
+
+board_config_update
+
+case "$(board_name)" in
+itus,shield-router|\
+ubnt,erlite|\
+ubnt,usg)
+	ucidef_set_interfaces_lan_wan "eth1 eth2" "eth0"
+	;;
+ubnt,edgerouter-4)
+	ucidef_set_interfaces_lan_wan "lan1 lan2 lan3" "lan0"
+	;;
+ubnt,edgerouter-6p)
+	ucidef_set_interfaces_lan_wan "lan1 lan2 lan3 lan4 lan5" "lan0"
+	;;
+cisco,vedge1000)
+	ucidef_set_interfaces_lan_wan "mgmt0" "lan0"
+	;;
+pan,pa-220)
+	# lan1-8 = one bridge (br-lan) at 192.168.1.2, meant to sit behind
+	# an existing router at 192.168.1.1 (gateway/DNS and no DHCP server:
+	# see uci-defaults 99-pa220-network). MGT = separate management
+	# network 192.168.2.1 with a small DHCP pool for a directly
+	# connected PC.
+	ucidef_set_interface "lan" device "lan1 lan2 lan3 lan4 lan5 lan6 lan7 lan8" \
+		protocol "static" ipaddr "192.168.1.2"
+	ucidef_set_interface "mgmt" device "mgmt" protocol "static" ipaddr "192.168.2.1"
+	;;
+*)
+	ucidef_set_interfaces_lan_wan "eth0" "eth1"
+	;;
+esac
+
+board_config_flush
+
+exit 0

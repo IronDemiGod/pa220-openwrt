@@ -1,0 +1,20 @@
+#!/bin/sh /etc/rc.common
+#
+# PA-220 network driver tuning and bridge fast path (see /usr/sbin/pa220-net)
+#
+
+START=19
+USE_PROCD=1
+
+start_service() {
+	grep -q '^pan,pa-220$' /tmp/sysinfo/board_name 2>/dev/null || return 0
+	/usr/sbin/pa220-net apply
+}
+
+service_triggers() {
+	procd_add_reload_trigger "pa220"
+}
+
+reload_service() {
+	start_service
+}

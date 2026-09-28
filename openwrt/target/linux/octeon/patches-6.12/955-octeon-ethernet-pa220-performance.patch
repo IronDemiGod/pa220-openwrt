@@ -1,0 +1,93 @@
+From: PA-220 port
+Subject: staging: octeon: multi-core receive, larger pool and GRO on the PA-220
+
+The PA-220 has no switch chip, so every frame is handled by the CPU.
+Default to 4 POW receive groups (hardware flow hashing, one group per
+core) and 4096 packet buffers on the PA-220; both remain overridable with
+the existing module parameters. Deliver packets through GRO and
+advertise the receive checksum validation the PIP already performs.
+---
+--- a/drivers/staging/octeon/ethernet.c
++++ b/drivers/staging/octeon/ethernet.c
+@@ -30,11 +30,12 @@
+ 
+ #define OCTEON_MAX_MTU 65392
+ 
+-static int num_packet_buffers = 1024;
++static int num_packet_buffers = -1;
+ module_param(num_packet_buffers, int, 0444);
+ MODULE_PARM_DESC(num_packet_buffers, "\n"
+ 	"\tNumber of packet buffers to allocate and store in the\n"
+-	"\tFPA. By default, 1024 packet buffers are used.\n");
++	"\tFPA. By default, 1024 packet buffers are used (4096 on the\n"
++	"\tPalo Alto PA-220).\n");
+ 
+ static int pow_receive_group = 15;
+ module_param(pow_receive_group, int, 0444);
+@@ -44,14 +45,15 @@
+ 	"\tgroup. Also any other software can submit packets to this\n"
+ 	"\tgroup for the kernel to process.");
+ 
+-static int receive_group_order;
++static int receive_group_order = -1;
+ module_param(receive_group_order, int, 0444);
+ MODULE_PARM_DESC(receive_group_order, "\n"
+ 	"\tOrder (0..4) of receive groups to take into use. Ethernet hardware\n"
+ 	"\twill be configured to send incoming packets to multiple POW\n"
+ 	"\tgroups. pow_receive_group parameter is ignored when multiple\n"
+ 	"\tgroups are taken into use and groups are allocated starting\n"
+-	"\tfrom 0. By default, a single group is used.\n");
++	"\tfrom 0. By default, a single group is used (4 groups, one\n"
++	"\tper core, on the Palo Alto PA-220).\n");
+ 
+ int pow_send_group = -1;
+ module_param(pow_send_group, int, 0644);
+@@ -455,6 +457,10 @@
+ 	if (priv->queue != -1)
+ 		dev->features |= NETIF_F_SG | NETIF_F_IP_CSUM;
+ 
++	/* The PIP verifies IP/TCP/UDP checksums on receive */
++	dev->features |= NETIF_F_RXCSUM;
++	dev->hw_features |= NETIF_F_RXCSUM;
++
+ 	/* We do our own locking, Linux doesn't need to */
+ 	dev->lltx = true;
+ 	dev->ethtool_ops = &cvm_oct_ethtool_ops;
+@@ -728,6 +734,26 @@
+ 		return -EINVAL;
+ 	}
+ 
++	/*
++	 * Board defaults for parameters not given on the command line. The
++	 * PA-220 has no switch chip, so spread receive work over its four
++	 * cores (4 POW groups, flows hashed by the hardware) and give the
++	 * nine gigabit ports a larger buffer pool.
++	 */
++	if (of_machine_is_compatible("pan,pa-220")) {
++		if (receive_group_order < 0)
++			receive_group_order = 2;
++		if (num_packet_buffers < 0)
++			num_packet_buffers = 4096;
++	}
++	if (receive_group_order < 0)
++		receive_group_order = 0;
++	if (num_packet_buffers < 0)
++		num_packet_buffers = 1024;
++	pr_info("octeon-ethernet: %d receive group(s), %d packet buffers\n",
++		receive_group_order ? 1 << receive_group_order : 1,
++		num_packet_buffers);
++
+ 	cvm_oct_configure_common_hw();
+ 
+ 	cvmx_helper_initialize_packet_io_global();
+--- a/drivers/staging/octeon/ethernet-rx.c
++++ b/drivers/staging/octeon/ethernet-rx.c
+@@ -350,7 +350,7 @@
+ 					dev->stats.rx_packets++;
+ 					dev->stats.rx_bytes += skb->len;
+ 				}
+-				netif_receive_skb(skb);
++				napi_gro_receive(&rx_group->napi, skb);
+ 			} else {
+ 				/*
+ 				 * Drop any packet received for a device that

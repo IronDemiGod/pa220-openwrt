@@ -1,0 +1,24 @@
+#!/bin/sh
+#
+# PA-220: keep kernel messages off the serial console once the system is
+# up (they interrupt typing). Boot messages before this still show, and
+# everything remains in `dmesg`. Change in LuCI: System -> System ->
+# Logging -> Console log level (or `dmesg -n 7` for the current boot).
+#
+
+. /lib/functions.sh
+
+case "$(board_name)" in
+pan,pa-220)
+	# only once, so a later user change survives sysupgrade
+	touch /etc/config/pa220
+	uci -q get pa220.defaults.conloglevel >/dev/null && exit 0
+	uci -q set system.@system[0].conloglevel='1'
+	uci -q commit system
+	uci -q set pa220.defaults=defaults
+	uci -q set pa220.defaults.conloglevel='1'
+	uci -q commit pa220
+	;;
+esac
+
+exit 0

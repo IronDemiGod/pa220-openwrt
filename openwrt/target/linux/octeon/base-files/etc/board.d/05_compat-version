@@ -1,0 +1,19 @@
+#!/bin/sh
+#
+# Copyright (C) 2020-2025 OpenWrt.org
+#
+
+. /lib/functions/uci-defaults.sh
+
+board_config_update
+
+case "$(board_name)" in
+pan,pa-220)
+	# eMMC layout p1 boot / p2 root (see pa220-install)
+	ucidef_set_compat_version "2.0"
+	;;
+esac
+
+board_config_flush
+
+exit 0

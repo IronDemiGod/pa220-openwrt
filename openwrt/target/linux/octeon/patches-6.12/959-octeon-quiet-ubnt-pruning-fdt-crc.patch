@@ -1,0 +1,36 @@
+From: PA-220 port
+Subject: [PATCH] MIPS: octeon: quieter UBNT pruning, keep the FDT CRC valid
+
+Only print the UBNT device tree pruning message on UBNT boards, and
+recompute the flattened device tree checksum after the Octeon fixups so
+/sys/firmware/fdt is created.
+
+---
+--- a/arch/mips/cavium-octeon/octeon-platform.c
++++ b/arch/mips/cavium-octeon/octeon-platform.c
+@@ -1142,6 +1142,11 @@
+ int __init ubnt_prune_device_tree(void)
+ {
+ 	/* MMC on UBNT */
++	if (octeon_bootinfo->board_type != CVMX_BOARD_TYPE_UBNT_E300 &&
++	    octeon_bootinfo->board_type != CVMX_BOARD_TYPE_UBNT_E200 &&
++	    octeon_bootinfo->board_type != CVMX_BOARD_TYPE_UBNT_E220)
++		return 0;
++
+ 	pr_info("UBNT board DTS pruning...\n");
+ 	if (octeon_bootinfo->board_type == CVMX_BOARD_TYPE_UBNT_E300) {
+ 		pr_info("UBNT E300 found, looking for mmc-slot@2\n");
+--- a/arch/mips/cavium-octeon/setup.c
++++ b/arch/mips/cavium-octeon/setup.c
+@@ -1251,6 +1251,11 @@
+ 
+ 	if (fill_mac)
+ 		octeon_fill_mac_addresses();
++	/*
++	 * The fixups above modify the flattened tree; record its checksum
++	 * again so /sys/firmware/fdt is still exported ("CRC check failed").
++	 */
++	early_init_dt_verify(initial_boot_params, __pa(initial_boot_params));
+ 	unflatten_and_copy_device_tree();
+ 	init_octeon_system_type();
+ }

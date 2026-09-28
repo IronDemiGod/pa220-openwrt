@@ -1,0 +1,23 @@
+#!/bin/sh
+#
+# PA-220: default temperature settings for the TEMP LED and the LuCI
+# Status -> Temperatures page. Existing settings are kept.
+#
+
+. /lib/functions.sh
+
+case "$(board_name)" in
+pan,pa-220)
+	touch /etc/config/pa220
+	uci -q get pa220.temp >/dev/null && exit 0
+	uci -q batch <<-EOT
+		set pa220.temp=temp
+		set pa220.temp.hot='85'
+		set pa220.temp.cool='80'
+		set pa220.temp.refresh='5'
+		commit pa220
+	EOT
+	;;
+esac
+
+exit 0

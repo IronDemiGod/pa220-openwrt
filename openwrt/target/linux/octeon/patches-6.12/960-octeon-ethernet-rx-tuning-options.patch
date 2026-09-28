@@ -1,0 +1,134 @@
+From: PA-220 port
+Subject: staging: octeon: run-time GRO and receive interrupt tuning options
+
+For throughput testing on the PA-220 (all switching is done by the CPU):
+
+  rx_gro        pass received packets through GRO or not (default on)
+  rx_irq_delay  POW time-counter threshold, 1..15 (default 1, as before)
+  rx_irq_pkts   POW input-queue count threshold, 0..255 (default 0 = off)
+
+All three are writable in /sys/module/octeon_ethernet/parameters/ and
+take effect at once. The defaults keep the previous behaviour.
+---
+--- a/drivers/staging/octeon/ethernet-rx.c
++++ b/drivers/staging/octeon/ethernet-rx.c
+@@ -37,6 +37,72 @@
+ 	struct napi_struct napi;
+ } oct_rx_group[16];
+ 
++static bool rx_gro = true;
++module_param(rx_gro, bool, 0644);
++MODULE_PARM_DESC(rx_gro, "\n"
++	"\tPass received packets through GRO (default). GRO helps traffic\n"
++	"\tthat ends on this host; forwarded/bridged packets must be split\n"
++	"\tagain in software before transmit. Can be changed at run time.\n");
++
++static int rx_irq_delay = 1;
++static int rx_irq_pkts;
++
++static void cvm_oct_rx_set_irq_thr(int group)
++{
++	if (OCTEON_IS_MODEL(OCTEON_CN68XX)) {
++		union cvmx_sso_wq_int_thrx int_thr;
++
++		int_thr.u64 = 0;
++		int_thr.s.tc_en = 1;
++		int_thr.s.tc_thr = rx_irq_delay;
++		int_thr.s.iq_thr = rx_irq_pkts;
++		cvmx_write_csr(CVMX_SSO_WQ_INT_THRX(group), int_thr.u64);
++	} else {
++		union cvmx_pow_wq_int_thrx int_thr;
++
++		int_thr.u64 = 0;
++		int_thr.s.tc_en = 1;
++		int_thr.s.tc_thr = rx_irq_delay;
++		int_thr.s.iq_thr = rx_irq_pkts;
++		cvmx_write_csr(CVMX_POW_WQ_INT_THRX(group), int_thr.u64);
++	}
++}
++
++static int rx_irq_param_set(const char *val, const struct kernel_param *kp)
++{
++	int n, i, ret;
++
++	ret = kstrtoint(val, 0, &n);
++	if (ret)
++		return ret;
++	if (kp->arg == &rx_irq_delay ? (n < 1 || n > 15) : (n < 0 || n > 255))
++		return -EINVAL;
++	*(int *)kp->arg = n;
++
++	/* Apply to the running receive groups */
++	if (atomic_read(&oct_rx_ready))
++		for (i = 0; i < ARRAY_SIZE(oct_rx_group); i++)
++			if (pow_receive_groups & BIT(i))
++				cvm_oct_rx_set_irq_thr(i);
++	return 0;
++}
++
++static const struct kernel_param_ops rx_irq_param_ops = {
++	.set = rx_irq_param_set,
++	.get = param_get_int,
++};
++
++module_param_cb(rx_irq_delay, &rx_irq_param_ops, &rx_irq_delay, 0644);
++MODULE_PARM_DESC(rx_irq_delay, "\n"
++	"\tReceive interrupt delay, 1..15 POW time-counter ticks (default 1).\n"
++	"\tA longer delay lets more packets collect per interrupt/NAPI poll.\n"
++	"\tCan be changed at run time.\n");
++
++module_param_cb(rx_irq_pkts, &rx_irq_param_ops, &rx_irq_pkts, 0644);
++MODULE_PARM_DESC(rx_irq_pkts, "\n"
++	"\tAlso interrupt at once when this many packets are queued in a\n"
++	"\treceive group, 0..255 (default 0 = off). Can be changed at run time.\n");
++
+ /**
+  * cvm_oct_do_interrupt - interrupt handler.
+  * @irq: Interrupt number.
+@@ -350,7 +416,10 @@
+ 					dev->stats.rx_packets++;
+ 					dev->stats.rx_bytes += skb->len;
+ 				}
+-				napi_gro_receive(&rx_group->napi, skb);
++				if (rx_gro)
++					napi_gro_receive(&rx_group->napi, skb);
++				else
++					netif_receive_skb(skb);
+ 			} else {
+ 				/*
+ 				 * Drop any packet received for a device that
+@@ -486,28 +555,21 @@
+ 
+ 		disable_irq_nosync(oct_rx_group[i].irq);
+ 
+-		/* Enable POW interrupt when our port has at least one packet */
++		/*
++		 * Enable POW interrupt when our port has at least one packet
++		 * and rx_irq_delay time-counter ticks have passed (or
++		 * rx_irq_pkts packets are queued)
++		 */
++		cvm_oct_rx_set_irq_thr(i);
+ 		if (OCTEON_IS_MODEL(OCTEON_CN68XX)) {
+-			union cvmx_sso_wq_int_thrx int_thr;
+ 			union cvmx_pow_wq_int_pc int_pc;
+ 
+-			int_thr.u64 = 0;
+-			int_thr.s.tc_en = 1;
+-			int_thr.s.tc_thr = 1;
+-			cvmx_write_csr(CVMX_SSO_WQ_INT_THRX(i), int_thr.u64);
+-
+ 			int_pc.u64 = 0;
+ 			int_pc.s.pc_thr = 5;
+ 			cvmx_write_csr(CVMX_SSO_WQ_INT_PC, int_pc.u64);
+ 		} else {
+-			union cvmx_pow_wq_int_thrx int_thr;
+ 			union cvmx_pow_wq_int_pc int_pc;
+ 
+-			int_thr.u64 = 0;
+-			int_thr.s.tc_en = 1;
+-			int_thr.s.tc_thr = 1;
+-			cvmx_write_csr(CVMX_POW_WQ_INT_THRX(i), int_thr.u64);
+-
+ 			int_pc.u64 = 0;
+ 			int_pc.s.pc_thr = 5;
+ 			cvmx_write_csr(CVMX_POW_WQ_INT_PC, int_pc.u64);

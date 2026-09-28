@@ -1,0 +1,57 @@
+#!/bin/sh
+#
+# PA-220 network driver tuning. Settings in /etc/config/pa220, section "net":
+#   fastpath      1/0  in-driver bridge fast path (known unicast between ports
+#                      of the same bridge bypasses the network stack)
+#   rx_gro        1/0  GRO on received packets
+#   rx_irq_delay  1-15 receive interrupt delay (POW time-counter ticks)
+#   rx_irq_pkts   0-255 also interrupt when this many packets wait (0 = off)
+#
+# pa220-net apply    write the settings to the driver
+# pa220-net status   show settings, driver values and fast path counters
+# pa220-net stats    machine-readable counters (used by LuCI)
+#
+
+P=/sys/module/octeon_ethernet/parameters
+
+cfg() { uci -q get pa220.net.$1 || echo "$2"; }
+
+# $1 parameter, $2 value as the driver reads it back (Y/N for flags)
+setp() {
+	[ -w "$P/$1" ] || return 0
+	[ "$(cat "$P/$1")" = "$2" ] && return 0
+	echo "$2" > "$P/$1" 2>/dev/null ||
+		logger -t pa220-net "invalid setting $1=$2"
+}
+
+yn() { [ "$1" = 1 ] && echo Y || echo N; }
+
+apply() {
+	setp rx_gro "$(yn "$(cfg rx_gro 1)")"
+	setp rx_irq_delay "$(cfg rx_irq_delay 1)"
+	setp rx_irq_pkts "$(cfg rx_irq_pkts 0)"
+	setp fastpath "$(yn "$(cfg fastpath 1)")"
+}
+
+stats() {
+	cat "$P/fastpath_stats" 2>/dev/null
+	echo "fastpath $(cat "$P/fastpath" 2>/dev/null)"
+	# softirq and total CPU time (all cores) for a load percentage
+	awk '/^cpu / { t = 0; for (i = 2; i <= NF; i++) t += $i; print "cpu", $8, t }' /proc/stat
+}
+
+status() {
+	echo "settings: fastpath=$(cfg fastpath 1) rx_gro=$(cfg rx_gro 1)" \
+		"rx_irq_delay=$(cfg rx_irq_delay 1) rx_irq_pkts=$(cfg rx_irq_pkts 0)"
+	echo "driver:   fastpath=$(cat $P/fastpath 2>/dev/null) rx_gro=$(cat $P/rx_gro 2>/dev/null)" \
+		"rx_irq_delay=$(cat $P/rx_irq_delay 2>/dev/null) rx_irq_pkts=$(cat $P/rx_irq_pkts 2>/dev/null)"
+	echo "packet steering: $(uci -q get network.globals.packet_steering || echo 'unset (on)')"
+	cat "$P/fastpath_stats" 2>/dev/null
+}
+
+case "$1" in
+apply)	apply ;;
+stats)	stats ;;
+status)	status ;;
+*)	echo "usage: pa220-net apply|status|stats" >&2; exit 1 ;;
+esac

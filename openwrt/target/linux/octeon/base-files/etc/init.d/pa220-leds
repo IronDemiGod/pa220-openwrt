@@ -1,0 +1,23 @@
+#!/bin/sh /etc/rc.common
+#
+# PA-220 LED on/off and night schedule (see /usr/sbin/pa220-leds)
+#
+
+START=99
+USE_PROCD=1
+
+start_service() {
+	grep -q '^pan,pa-220$' /tmp/sysinfo/board_name 2>/dev/null || return 0
+	procd_open_instance
+	procd_set_param command /usr/sbin/pa220-leds daemon
+	procd_set_param respawn
+	procd_close_instance
+}
+
+service_triggers() {
+	procd_add_reload_trigger "pa220"
+}
+
+reload_service() {
+	/usr/sbin/pa220-leds apply
+}

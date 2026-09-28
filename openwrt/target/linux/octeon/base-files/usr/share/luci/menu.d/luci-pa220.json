@@ -1,0 +1,64 @@
+{
+	"admin/system/leds": {
+		"title": "LED Configuration",
+		"order": 60,
+		"action": {
+			"type": "firstchild"
+		},
+		"depends": {
+			"acl": [ "luci-mod-system-config" ],
+			"fs": { "/sys/class/leds": "directory" }
+		}
+	},
+
+	"admin/system/leds/leds": {
+		"title": "LEDs",
+		"order": 1,
+		"action": {
+			"type": "view",
+			"path": "system/leds"
+		},
+		"depends": {
+			"acl": [ "luci-mod-system-config" ]
+		}
+	},
+
+	"admin/system/leds/pa220": {
+		"title": "PA-220",
+		"order": 2,
+		"action": {
+			"type": "view",
+			"path": "pa220/leds"
+		},
+		"depends": {
+			"acl": [ "luci-app-pa220" ],
+			"uci": { "pa220": true }
+		}
+	},
+
+	"admin/network/pa220": {
+		"title": "PA-220 Performance",
+		"order": 90,
+		"action": {
+			"type": "view",
+			"path": "pa220/network"
+		},
+		"depends": {
+			"acl": [ "luci-app-pa220" ],
+			"uci": { "pa220": true }
+		}
+	},
+
+	"admin/status/temperatures": {
+		"title": "Temperatures",
+		"order": 15,
+		"action": {
+			"type": "view",
+			"path": "pa220/temperatures"
+		},
+		"depends": {
+			"acl": [ "luci-app-pa220" ],
+			"uci": { "pa220": true }
+		}
+	}
+}
