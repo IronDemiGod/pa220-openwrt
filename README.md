@@ -41,6 +41,7 @@ Cavium OCTEON III CN7130 (4 × MIPS64 at 1 GHz), 8 GB DDR,
   - CPLD control (CPLD controls LEDs, flash select, watchdog pulse).
   - Palo Alto's initial stage bootloaders are untouched and are what load the custom U-boot.
   - Second SPI flash chip, which is a failsafe, remains untouched.
+- **RAM and storage:** 27.6 GB eMMC storage, 8 GB DDR memory.
 
 ## License
 
