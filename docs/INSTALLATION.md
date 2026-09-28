@@ -156,10 +156,11 @@ Maintenance Mode (main menu)
 
 
 
-## Part 2: Flashing the new U-Boot
+## Part 2: Full Backup and Flashing the new U-Boot
 
 ### General outline of the procedure:
-
+We boot our custom U-boot using Palo Alto's U-boot. In our custom U-boot we then boot an OpenWrt RAM image to verify disk/flash access and to take full backups.
+After that we boot into the custom U-oot using palo alto's U-oot again to flash the SPI flash chip with our custom U-boot. This permanently sets our U-boot to handle booting.
 
 ### 7. Files
 
@@ -179,18 +180,15 @@ them).
 
 1. TFTP server:
    - Windows: Tftpd64. Linux: `tftpd-hpa`.
-   - Put the 3 files in its folder.
+   - Put the 3 files in the tftp server's directory.
    - Windows firewall: allow the TFTP server (UDP 69).
-2. Network cable: PC ↔ PA-220 **MGT** port (directly, no switch needed).
-3. PC network adapter, static IP:
-   - IP `192.168.2.10`
-   - Netmask `255.255.255.0`
-   - No gateway
+2. Network cable: MGT Port to a switch/router to which your PC is connected as well.
+3. Make your PC's network interface a static ip like shown in the below table.
 4. Tftpd64: "Server interfaces" → `192.168.2.10`.
 
 Addresses used below:
 
-| | IP |
+| Device | IP |
 |---|---|
 | PC / TFTP server | 192.168.2.10 |
 | PA-220 in U-Boot | 192.168.2.2 |
@@ -222,7 +220,7 @@ go 0x81000000
 3. If it starts counting down, press any key. (If it runs out, it just fails
    to find a kernel and stops at `pa-220#` anyway.)
 
-Nothing has been written yet. A power cycle brings back Palo Alto's U-Boot.
+(Nothing has been written yet. A power cycle brings back Palo Alto's U-Boot.)
 
 ### 10. Boot OpenWrt from RAM
 
@@ -233,12 +231,12 @@ setenv serverip 192.168.2.10
 run linux_ram
 ```
 
-- Loads the initramfs image over TFTP and boots it (~30 s).
+- It Loads the initramfs image over TFTP and boots it (~30 s).
 - A single "Receive error" / retry during the transfer is normal here.
 - Press **Enter** when the boot messages stop → root shell
   `root@OpenWrt:~#`.
-- RAM image: root password `password`, MGT = 192.168.2.1.
-- Nothing is written to the eMMC or SPI by just booting it.
+- RAM image: root password `password`, MGT's ip is set to 192.168.2.1.
+- Nothing is written to the eMMC or SPI yet.
 
 Check the eMMC and SPI flash are seen:
 ```
@@ -337,8 +335,8 @@ step).
 
 Power-cycle the PA-220 (power cable out/in).
 
-1. Terminal at **115200**. The first lines are garbage (Palo Alto's early
-   stages print at 9600). Normal.
+1. Terminal at **115200**. When powered on, you may see garbage lines or nothing at all for some seconds, this is fine. (Palo Alto's early
+   stages print at 9600 baud)
 2. Our U-Boot: 2 s countdown, finds no kernel yet → `pa-220#`.
 3. Status LEDs: STAT orange, ALM green at the prompt.
 
@@ -352,6 +350,7 @@ saveenv
 ## Part 3: Installing OpenWrt
 
 ### General outline of the procedure:
+Using our custom U-boot, we boot into the OpenWrt RAM image to finally erase and reformat the internal eMMC storage to install OpennWrt permanently.
 
 
 ### 14. Install OpenWrt to the eMMC
@@ -408,9 +407,8 @@ eMMC layout after the install:
 
 1. Browser → `http://192.168.2.1` → LuCI. User `root`, no password yet.
 2. System → Administration → set a root password.
-3. Set up the network as you like (Network → Interfaces).
 
-Done.
+Done. OpenWrt is now permanently installed on your PA-220.
 
 ## Upgrading later
 
