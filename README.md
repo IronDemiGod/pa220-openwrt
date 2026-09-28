@@ -79,8 +79,4 @@ This makes the PA-220 a fully capable Gigabit router/firewall, and more.
 
 ## License
 
-- OpenWrt and kernel parts: GPL-2.0.
-- U-Boot: GPL-2.0+; the Cavium OCTEON SDK files (`cvmx-*`) are under the
-  Cavium BSD-style license.
-
-See `LICENSES/`.
+[License](LICENSE.md)
