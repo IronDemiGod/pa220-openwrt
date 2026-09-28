@@ -19,26 +19,28 @@ Cavium OCTEON III CN7130 (4 × MIPS64 at 1 GHz), 8 GB DDR,
   read from the board EEPROM.
 - **Bridge fast path in the driver.** Known unicast frames between bridge ports
   are forwarded without building an skb. 802.1Q VLAN filtering is supported.
-  Gigabit line rate uses about 12 % softirq (about 25–30 % without the fast
-  path).
+  Gigabit line rate uses about 12 % softirq (it is 25–30 % without fast
+  path). (softirq % is the share of CPU time used to process packets in the kernel).
 - **Hardware crypto.** AES and GHASH use the OCTEON COP2 unit.
 - **LEDs:**
   - The front LEDs (STAT, HA, ALM, TEMP) show boot, running, upgrade and
     kernel-panic states, and are configurable in LuCI.
   - The port jack LEDs are configurable in LuCI
-- **Sensors.** CPU temperatures are shown in LuCI. TEMP
-  turns orange when the board is hot.
+- **Sensors:** CPU temperatures are shown in LuCI. TEMP
+  LED thresholds can be configured in LuCI.
 - **PA-220-specific LuCI pages/sections:**
   - PA-220 LED settings.
   - Temperatures.
   - Network performance, (fastpath, RX settings, statistics)
-- **Hardware watchdog** (octeon-wdt) with the correct timeout.
+- **Boot time:** 28 seconds. 
+- **Hardware watchdog** (octeon-wdt).
 - **Custom U-Boot** (Cavium SDK U-Boot 2013.07):
-  - Boots OpenWrt from the eMMC in about 0.3 s.
-  - Falls back to the previous kernel.
-  - Can boot a RAM image over TFTP.
-  - Controls the CPLD (LEDs, flash select, watchdog pulse).
-  - Palo Alto's initial stage bootloaders are untouched and are what load the custom U-boot
+  - Kernel load times are way faster than the original U-boot.
+  - Backup kernel fallback.
+  - TFTP Boot.
+  - CPLD control (CPLD controls LEDs, flash select, watchdog pulse).
+  - Palo Alto's initial stage bootloaders are untouched and are what load the custom U-boot.
+  - Second SPI flash chip, which is a failsafe, remains untouched.
 
 ## License
 
