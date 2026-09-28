@@ -129,19 +129,10 @@ kernel left.)
 Check: type `printenv` → Enter. Variables are listed.
 
 
-## Part 2: Installing OpenWrt
+## Part 2: Flashing the new U-Boot
 
 ### General outline of the procedure:
 
-Everything goes over the **MGT port** with TFTP from a PC.
-
-1. Start our U-Boot from RAM (nothing written).
-2. Boot OpenWrt from RAM, take full backups over SSH.
-3. Flash our U-Boot to SPI flash (0x250000, next to Palo Alto's bootloaders).
-4. Boot OpenWrt from RAM again and install it to the eMMC with `pa220-install`.
-
-Palo Alto's bootloaders and the failsafe SPI chip stay untouched. If our
-U-Boot is ever broken, Palo Alto's U-Boot starts instead.
 
 ### 7. Files
 
@@ -330,6 +321,11 @@ setenv ipaddr 192.168.2.2
 setenv serverip 192.168.2.10
 saveenv
 ```
+
+## Part 3: Installing OpenWrt
+
+### General outline of the procedure:
+
 
 ### 14. Install OpenWrt to the eMMC
 
