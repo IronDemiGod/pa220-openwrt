@@ -115,6 +115,35 @@ On the Disk Image - Advanced screen:
 `dev/` and `var/log/`. The maint component installs nothing there → no
 kernel left.)
 
+### Menu Map of our steps:
+
+```
+Maintenance Mode (main menu)
+├─ Maintenance Entry Reason
+├─ Get System Info
+├─ Factory Reset ─ Advanced (password)
+├─ FSCK (Disk Check)
+├─ Log Files
+├─ Bootloader Recovery (password)
+├─ Disk Image                              ← 1
+│   ├─ Reinstall <active version>
+│   ├─ Revert to <previous version>
+│   └─ Advanced Options                    ← 2
+│       └─ "Enter password for advanced options:"  MA1NT   ← 3
+│           └─ Disk Image - Advanced
+│               ├─ List | Status | History | Revert | Cancel
+│               ├─ ( ) images: 10.0.6, 9.0.0, …   [Info] [Verify] [Purge]
+│               ├─ ( ) partitions: sysroot0 / sysroot1 / maint   [Boot]
+│               ├─ ( ) components: maint / panos / content   [Refresh]
+│               └─ [Bootstrap]  "<image>, <partition>, <component>"   ← 4
+├─ Select Running Config
+├─ Content Rollback
+├─ Set IP Address
+├─ Diagnostics (password)
+├─ Debug Reboot
+└─ Reboot
+```
+
 ### 6. Reboot into the U-Boot shell
 
 1. On the result screen → **Reboot** (or main menu → **Reboot**).
@@ -124,9 +153,7 @@ kernel left.)
    ```
    Kingfisher(ram) (mp)#
    ```
-4. Done. Every boot now ends at this prompt (until PanOS is reinstalled).
 
-Check: type `printenv` → Enter. Variables are listed.
 
 
 ## Part 2: Flashing the new U-Boot
