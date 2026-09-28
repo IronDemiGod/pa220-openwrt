@@ -39,7 +39,6 @@ This makes the PA-220 a fully capable Gigabit router/firewall, and more.
 ---
 ## Photos and Screenshots:
 
-### IRL Look
 
 <img width="853" height="273" alt="output" src="https://github.com/user-attachments/assets/4b3a311f-ac92-47fa-8010-28c3b3ea2224" />
 
@@ -58,7 +57,7 @@ This makes the PA-220 a fully capable Gigabit router/firewall, and more.
       <img src="https://github.com/user-attachments/assets/3e911ee8-40bf-4944-ac70-b5e577c1dbcf" width="400" alt=""><br>
     </td>
     <td align="center">
-      <img src="https://github.com/user-attachments/assets/74fa35a6-cb6f-4378-805a-4a8171ec06ee" width="400" alt=""><br>
+      <img src="https://github.com/user-attachments/assets/b7bdf8d8-7134-44f3-86bc-12e5b1014edb" width="400" alt=""><br>
     </td>
   </tr>
 </table>
@@ -69,10 +68,10 @@ This makes the PA-220 a fully capable Gigabit router/firewall, and more.
 - [Installation Guide](docs/INSTALLATION.md)
 - **The installation procedure is very lengthy**
 
-### Upgrading OpenWrt
+## Upgrading OpenWrt
 - [Upgrading Guide](docs/UPGRADING.md)
-
-### Recovery
+    
+## Recovery
 - [Recovery Suggestions](docs/RECOVERY.md)
 
 ---
