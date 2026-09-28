@@ -12,8 +12,8 @@
 
 ### General outline of the procedure:
 
-This is a very lengthy procedure, unlike many other openwrt-compatible devices. It involves rewriting part of the bootloader, and wiping PanOS from internal storage.
-Full backups of the SPI flash chips and the emmc can be taken, and therefore can be used to restore the original state of the box via U-boot and a ram-booted linux image.
+This is a very lengthy procedure, unlike many other openwrt-compatible devices. It involves breaking U-boot to get into the shell, rewriting part of the bootloader, and wiping PanOS from internal storage.
+Full backups of the SPI flash chips and the emmc can be taken, and therefore can be used to restore the original state of the box via U-boot and a ram-booted linux image (Described later.)
 
 We first need to obtain access to the U-boot prompt. Digging through a dump of the U-boot data revealed that you can type the word "pass" in the screen that asks you to enter 'maint',but it then asks for a password. Claude got flagged when it attempted to find the password. I believe this gives is access to the u-boot shell, and it would've been the easier way had we known the password.
 
