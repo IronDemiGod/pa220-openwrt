@@ -15,7 +15,7 @@ This makes the PA-220 a fully capable Gigabit router/firewall, and more.
 
 ## Features
 
-- **9 network ports** work: `lan1`–`lan8` and `mgmt`. MAC addresses are
+- **9 network ports** work: `eth1`–`eth8` and `mgt`. MAC addresses are
   read from the board EEPROM.
 - **Hardware crypto.** AES and GHASH use the OCTEON COP2 unit.
 - **Bridged fast-path** (check full feature list)

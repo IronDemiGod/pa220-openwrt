@@ -1,23 +1,41 @@
 #!/bin/sh
 #
 # PA-220 first-boot network (board.d/01_network creates the interfaces):
-#   lan  = br-lan (lan1-8) 192.168.1.2/24, gateway + DNS via the existing
+#   lan  = br-lan (eth1-8) 192.168.1.2/24, gateway + DNS via the existing
 #          router: gateway 192.168.1.1, DNS 1.1.1.1; no DHCP/RA server on
 #          it (the router already does that)
-#   mgmt = 192.168.2.1/24, DHCP pool .100-.149 for a directly connected PC
-# Only on a freshly generated config; settings kept over a sysupgrade or
-# restored from a backup are left alone.
+#   mgt  = port mgt, 192.168.2.1/24, DHCP pool .100-.149 for a directly
+#          connected PC, own firewall zone "mgt": traffic to the router
+#          itself (ping, SSH, LuCI) accepted, never forwarded to or from
+#          other networks
+# Gateway/DNS/DHCP only on a freshly generated config; settings kept over a
+# sysupgrade or restored from a backup are left alone. The firewall zone is
+# added whenever it is missing.
 #
 
 . /lib/functions.sh
 
-case "$(board_name)" in
-pan,pa-220)
-	[ "$(uci -q get network.lan.ipaddr)" = "192.168.1.2/24" ] || exit 0
-	[ "$(uci -q get network.mgmt.ipaddr)" = "192.168.2.1/24" ] || exit 0
-	[ -z "$(uci -q get network.lan.gateway)" ] || exit 0
+mgt_firewall() {
+	[ -f /etc/config/firewall ] || return 0
+	uci -q get firewall.mgt >/dev/null && return 0
+
+	uci -q batch <<-EOT
+		set firewall.mgt=zone
+		set firewall.mgt.name='mgt'
+		add_list firewall.mgt.network='mgt'
+		set firewall.mgt.input='ACCEPT'
+		set firewall.mgt.output='ACCEPT'
+		set firewall.mgt.forward='REJECT'
+		commit firewall
+	EOT
+}
+
+fresh_network() {
+	[ "$(uci -q get network.lan.ipaddr)" = "192.168.1.2/24" ] || return 0
+	[ "$(uci -q get network.mgt.ipaddr)" = "192.168.2.1/24" ] || return 0
+	[ -z "$(uci -q get network.lan.gateway)" ] || return 0
 	touch /etc/config/pa220
-	uci -q get pa220.defaults.network >/dev/null && exit 0
+	uci -q get pa220.defaults.network >/dev/null && return 0
 
 	uci -q batch <<-EOT
 		set network.lan.gateway='192.168.1.1'
@@ -32,17 +50,23 @@ pan,pa-220)
 		set dhcp.lan.dhcpv4='disabled'
 		set dhcp.lan.dhcpv6='disabled'
 		set dhcp.lan.ra='disabled'
-		set dhcp.mgmt=dhcp
-		set dhcp.mgmt.interface='mgmt'
-		set dhcp.mgmt.start='100'
-		set dhcp.mgmt.limit='50'
-		set dhcp.mgmt.leasetime='12h'
+		set dhcp.mgt=dhcp
+		set dhcp.mgt.interface='mgt'
+		set dhcp.mgt.start='100'
+		set dhcp.mgt.limit='50'
+		set dhcp.mgt.leasetime='12h'
 		commit dhcp
 	EOT
 
 	uci -q set pa220.defaults=defaults
 	uci -q set pa220.defaults.network='1'
 	uci -q commit pa220
+}
+
+case "$(board_name)" in
+pan,pa-220)
+	mgt_firewall
+	fresh_network
 	;;
 esac
 

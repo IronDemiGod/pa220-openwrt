@@ -255,28 +255,28 @@
 		status = "okay";
 
 		ethernet@0 {
-			label = "lan1";
+			label = "eth1";
 			status = "okay";
 			phy-mode = "sgmii";
 			phy-handle = <&phy8>;
 			local-mac-address = [00 00 00 00 00 00];
 		};
 		ethernet@1 {
-			label = "lan2";
+			label = "eth2";
 			status = "okay";
 			phy-mode = "sgmii";
 			phy-handle = <&phy9>;
 			local-mac-address = [00 00 00 00 00 00];
 		};
 		ethernet@2 {
-			label = "lan3";
+			label = "eth3";
 			status = "okay";
 			phy-mode = "sgmii";
 			phy-handle = <&phy10>;
 			local-mac-address = [00 00 00 00 00 00];
 		};
 		ethernet@3 {
-			label = "lan4";
+			label = "eth4";
 			status = "okay";
 			phy-mode = "sgmii";
 			phy-handle = <&phy11>;
@@ -288,28 +288,28 @@
 		status = "okay";
 
 		ethernet@0 {
-			label = "lan5";
+			label = "eth5";
 			status = "okay";
 			phy-mode = "sgmii";
 			phy-handle = <&phy12>;
 			local-mac-address = [00 00 00 00 00 00];
 		};
 		ethernet@1 {
-			label = "lan6";
+			label = "eth6";
 			status = "okay";
 			phy-mode = "sgmii";
 			phy-handle = <&phy13>;
 			local-mac-address = [00 00 00 00 00 00];
 		};
 		ethernet@2 {
-			label = "lan7";
+			label = "eth7";
 			status = "okay";
 			phy-mode = "sgmii";
 			phy-handle = <&phy14>;
 			local-mac-address = [00 00 00 00 00 00];
 		};
 		ethernet@3 {
-			label = "lan8";
+			label = "eth8";
 			status = "okay";
 			phy-mode = "sgmii";
 			phy-handle = <&phy15>;
@@ -332,7 +332,7 @@
 		ethernet@0 {
 			compatible = "cavium,octeon-3860-pip-port";
 			reg = <0>; /* Port */
-			label = "mgmt";
+			label = "mgt";
 			status = "okay";
 			phy-mode = "rgmii";
 			phy-handle = <&phy1>;

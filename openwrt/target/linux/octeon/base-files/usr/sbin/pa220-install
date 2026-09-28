@@ -69,7 +69,7 @@ mkdir -p "$WORK"
 
 echo "waiting for the network (MGT port) ..."
 wait_for "ping -c 1 -W 1 $SERVER >/dev/null 2>&1" ||
-	die "$SERVER does not answer; check the MGT cable and 'ip addr show mgmt'"
+	die "$SERVER does not answer; check the MGT cable and 'ip addr show mgt'"
 
 fetch "$IMAGE"
 board_dir=$(tar tf "$WORK/$IMAGE" 2>/dev/null | grep -m 1 '^sysupgrade-.*/$')

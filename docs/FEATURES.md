@@ -20,9 +20,9 @@
 | SoC | Cavium OCTEON III CN7130, 4 × MIPS64r2 @ 1 GHz, big-endian | All 4 cores |
 | RAM | 8 GB DDR | Full 8 GB |
 | Storage | 27.6 GB eMMC (Micron) | Boot + root |
-| Ports 1–8 | Marvell 88E1680 octal PHY, 2 × QSGMII | `lan1`–`lan8`, gigabit |
-| MGT port | Marvell 88E1512, RGMII | `mgmt`, gigabit |
-| MAC addresses | Board EEPROM | lan1–8 = base+0…7, mgmt = base+8 |
+| Ports 1–8 | Marvell 88E1680 octal PHY, 2 × QSGMII | `eth1`–`eth8`, gigabit |
+| MGT port | Marvell 88E1512, RGMII | `mgt`, gigabit |
+| MAC addresses | Board EEPROM | eth1–8 = base+0…7, mgt = base+8 |
 | Crypto | OCTEON COP2 | AES (ECB/CBC/CTR), GHASH |
 | Temp sensor | TMP421 | CPU die + board |
 | RTC | DS1338 | Synced from NTP |
@@ -46,13 +46,13 @@ Board kernel patches:
 
 | Interface | Ports | Settings |
 |---|---|---|
-| `lan` (`br-lan`) | lan1–lan8 | 192.168.1.2/24, gateway 192.168.1.1, DNS 1.1.1.1, DHCP server off |
-| `mgmt` | MGT | 192.168.2.1/24, DHCP server on (.100–.149) |
+| `lan` (`br-lan`) | eth1–eth8 | 192.168.1.2/24, gateway 192.168.1.1, DNS 1.1.1.1, DHCP server off |
+| `mgt` | MGT (`mgt`) | 192.168.2.1/24, DHCP server on (.100–.149) |
 
 - Front ports: All bridged (basically a switch).
 - MGT: separate management network. Plug a PC in directly, LuCI/SSH at
   192.168.2.1.
-- MGT firewall zone `mgmt`: ping/SSH/LuCI to the box allowed, no forwarding
+- MGT firewall zone `mgt`: ping/SSH/LuCI to the box allowed, no forwarding
   to/from other networks.
 - Defaults only apply to a fresh config. Kept/restored settings are left
   alone.

@@ -2,7 +2,7 @@
 #
 # PA-220: ignore routes on ports without link. The MGT port and the front
 # ports are often configured in the same subnet; without this the kernel
-# keeps using the route of an unplugged port (e.g. static mgmt) and replies
+# keeps using the route of an unplugged port (e.g. static mgt) and replies
 # are sent into the dead port. Applied by /etc/init.d/sysctl at every boot.
 #
 
