@@ -22,6 +22,7 @@ set -e
 export LC_ALL=C
 
 OPENWRT_URL=https://git.openwrt.org/openwrt/openwrt.git
+OPENWRT_MIRROR=https://github.com/openwrt/openwrt.git	# official mirror
 OPENWRT_TAG=v25.12.4
 MANIFEST=.pa220-files		# list of copied files, kept in the tree
 
@@ -38,7 +39,11 @@ dir=${1:-openwrt-pa220}
 if [ $sync = 1 ]; then
 	[ -f "$dir/scripts/feeds" ] || { echo "$dir is not an OpenWrt tree" >&2; exit 1; }
 elif [ ! -d "$dir/.git" ]; then
-	git clone --branch "$OPENWRT_TAG" --depth 1 "$OPENWRT_URL" "$dir"
+	git clone --branch "$OPENWRT_TAG" --depth 1 "$OPENWRT_URL" "$dir" || {
+		echo "$OPENWRT_URL failed, trying the mirror $OPENWRT_MIRROR"
+		rm -rf "$dir"
+		git clone --branch "$OPENWRT_TAG" --depth 1 "$OPENWRT_MIRROR" "$dir"
+	}
 fi
 dir=$(cd "$dir" && pwd)
 
