@@ -4,6 +4,8 @@
   `run linux_ram` → `pa220-install 192.168.2.10`.
 - Our U-Boot broken: Palo Alto's U-Boot starts instead at 9600 baud:
   `Kingfisher(ram) (mp)#`
-  Repeat Step  in INSTALLATION.md
+  Refer Step 12 in the installation guide
 
+---
+  
   TODO
