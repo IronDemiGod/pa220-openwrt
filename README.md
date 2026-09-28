@@ -76,6 +76,11 @@ This makes the PA-220 a fully capable Gigabit router/firewall, and more.
 
 ---
 
+## Building
+[Build Environment setup](docs/BUILD.md)
+
+```
+
 ## License
 
 [License](LICENSE.md)
