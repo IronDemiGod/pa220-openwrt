@@ -43,6 +43,19 @@ Cavium OCTEON III CN7130 (4 × MIPS64 at 1 GHz), 8 GB DDR,
   - Second SPI flash chip, which is a failsafe, remains untouched.
 - **RAM and storage:** 27.6 GB eMMC storage, 8 GB DDR memory.
 
+- [Full Features List](docs/FEATURES.md)
+
+## Installation
+- [Installation Guide](docs/INSTALLATION.md)
+- **The installation procedure is very lengthy**
+
+## Upgrading OpenWrt
+- [Upgrading Guide](docs/UPGRADING.md)
+
+## Recovery
+- ## Upgrading OpenWrt
+- [Recovery Suggestions](docs/RECOVERY.md)
+
 ## License
 
 - OpenWrt and kernel parts: GPL-2.0.
