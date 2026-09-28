@@ -6,6 +6,7 @@
 - [LEDs](#leds)
 - [Temperatures and RTC](#temperatures-and-rtc)
 - [LuCI pages](#luci-pages)
+- [eMMC layout](#emmc-layout)
 - [U-Boot](#u-boot)
 - [Included packages](#included-packages)
 - [Other defaults](#other-defaults)
@@ -61,7 +62,7 @@ Board kernel patches:
 
 - All traffic between the front ports goes through the CPU.
 - Every port is a normal Linux interface: bridge, route, VLAN, WAN, etc.
-- 
+
 ## Performance
 
 ### Bridge fast path (on by default)
@@ -88,9 +89,9 @@ Measured (bridged gigabit internet):
 | | Download | Upload |
 |---|---|---|
 | Fast path on | 945 Mbit/s, ~12 % softirq | 910 Mbit/s, ~6 % softirq |
-| Fast path off | 940 Mbit/s, ~25–30 % softirq | 850 Mbit/s, ~15-20 % softirq |
+| Fast path off | 940 Mbit/s, ~25–30 % softirq | 850 Mbit/s, ~15–20 % softirq |
 
-- (UL/DL speed reading were influenced by my ISP only, not the firewall).
+- UL/DL speeds were limited by my ISP, not the firewall.
 - softirq % = share of CPU time (all 4 cores) spent processing packets in
   the kernel.
 
@@ -180,14 +181,14 @@ Performance page live status:
 - Same data on the CLI: `pa220-net status`.
 - Changes apply instantly, no reboot.
 
-### eMMC layout
+## eMMC layout
 
 | Partition | Size | Contents |
 |---|---|---|
 | p1 | 256 MiB ext3 | Kernel `/vmlinux.oct3-mp` + backup `/vmlinux.oct3-mp.bak`, mounted at `/boot` |
 | p2 | Rest (~27 GiB) | ext4 root |
 
-(p1 is ext3 due to limitation by Palo alto's initial bootloader stages)
+(p1 is ext3 due to a limitation of Palo Alto's early bootloader stages.)
 
 ## U-Boot
 
@@ -234,7 +235,7 @@ On top of the standard OpenWrt set:
 ## Other defaults
 
 - Kernel messages off the serial console once booted (still in `dmesg`).
-  Setting: LuCI → System → System → Logging.d
+  Setting: LuCI → System → System → Logging
 - RAM image root password `password` (never runs with an empty password).
   Installed systems not affected.
 

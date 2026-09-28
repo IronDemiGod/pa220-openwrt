@@ -6,7 +6,7 @@
 
 
 A port of OpenWrt to the Palo Alto Networks PA-220
-firewall. OpenWrt runs from the internal eMMC, Initialised by a custom U-Boot build
+firewall. OpenWrt runs from the internal eMMC, initialised by a custom U-Boot build
 installed next to Palo Alto's bootloaders in SPI flash.
 
 This makes the PA-220 a fully capable Gigabit router/firewall, and more.
@@ -18,20 +18,20 @@ This makes the PA-220 a fully capable Gigabit router/firewall, and more.
 - **9 network ports** work: `eth1`–`eth8` and `mgt`. MAC addresses are
   read from the board EEPROM.
 - **Hardware crypto.** AES and GHASH use the OCTEON COP2 unit.
-- **Bridged fast-path** (check full feature list)
+- **Bridged fast-path** (see the full feature list).
 - **LEDs:**
   - The front LEDs (STAT, HA, ALM, TEMP) show boot, running, upgrade and
     kernel-panic states, and are configurable in LuCI.
-  - The port jack LEDs are configurable in LuCI
+  - The port jack LEDs are configurable in LuCI.
 - **Sensors:** CPU temperatures are shown in LuCI. TEMP
   LED thresholds can be configured in LuCI.
 - **PA-220-specific LuCI pages/sections:**
   - PA-220 LED settings.
   - Temperatures.
-  - Network performance, (fastpath, RX settings, statistics)
+  - Network performance (fast path, RX settings, statistics).
 - **Boot time:** 28 seconds. 
 - **Custom U-Boot** (Cavium SDK U-Boot 2013.07):
-  - Faster Kernel load times. (way faster), Backup kernel fallback. TFTP boot, LED control.
+  - Much faster kernel loading, backup kernel fallback, TFTP boot, LED control.
 - **RAM and storage:** 27.6 GB eMMC storage, 8 GB DDR memory.
 
 - [Full Features List](docs/FEATURES.md)

@@ -1,6 +1,6 @@
 # Installation Steps
 
-## Pre-requisites
+## Prerequisites
 
 - PA-220 running PanOS (any version).
 - Console cable: RJ45 console → USB serial adapter cable, or the micro-USB port.
@@ -8,22 +8,22 @@
   flow control**.
 
 
-## Part 1: Obtaining U-boot shell access
+## Part 1: Obtaining U-Boot shell access
 
 ### General outline of the procedure:
 
-This is a very lengthy procedure, unlike many other openwrt-compatible devices. It involves breaking U-boot to get into the shell, rewriting part of the bootloader, and wiping PanOS from internal storage.
-Full backups of the SPI flash chips and the emmc can be taken, and therefore can be used to restore the original state of the box via U-boot and a ram-booted linux image (Described later.)
+This is a very lengthy procedure, unlike many other OpenWrt-compatible devices. It involves breaking U-Boot to get into the shell, rewriting part of the bootloader, and wiping PanOS from internal storage.
+Full backups of the SPI flash chips and the eMMC can be taken, and therefore can be used to restore the original state of the box via U-Boot and a RAM-booted Linux image (described later).
 
-We first need to obtain access to the U-boot prompt. Digging through a dump of the U-boot data revealed that you can type the word "pass" in the screen that asks you to enter 'maint',but it then asks for a password. Claude got flagged when it attempted to find the password. I believe this gives is access to the u-boot shell, and it would've been the easier way had we known the password.
+We first need to obtain access to the U-Boot prompt. Digging through a dump of the U-Boot data revealed that you can type the word "pass" in the screen that asks you to enter 'maint', but it then asks for a password. Claude got flagged when it attempted to find the password. I believe this gives us access to the U-Boot shell, and it would've been the easier way had we known the password.
 
-We instead do this by entering the Maintenance menu through the serial console. We then use a 'bootstrapping' tool which re-formats the partition targeted by u-boot when it searches for the kernel. After this, once it fails to find the kernel during boot, it lands in the shell.
+We instead do this by entering the Maintenance menu through the serial console. We then use a 'bootstrapping' tool which reformats the partition targeted by U-Boot when it searches for the kernel. After this, once it fails to find the kernel during boot, it lands in the shell.
 
 
 ### 1. Connect the console
 
 1. Plug the cable into the **CONSOLE** port.
-**The CONSOLE port is better, but the micro-usb is also good.**
+**The CONSOLE port is better, but the micro-USB is also good.**
 2. Open the terminal at 9600 8N1.
 3. Power on (or reboot) the PA-220.
 
@@ -129,7 +129,7 @@ Maintenance Mode (main menu)
 │   ├─ Reinstall <active version>
 │   ├─ Revert to <previous version>
 │   └─ Advanced Options                    ← 2
-│       └─ "Enter password for advanced options:"  MA1NT   ← 3
+│       └─ "Enter password for advanced options:"  <password>   ← 3
 │           └─ Disk Image - Advanced
 │               ├─ List | Status | History | Revert | Cancel
 │               ├─ ( ) images: 10.0.6, 9.0.0, …   [Info] [Verify] [Purge]
@@ -159,8 +159,8 @@ Maintenance Mode (main menu)
 ## Part 2: Full Backup and Flashing the new U-Boot
 
 ### General outline of the procedure:
-We boot our custom U-boot using Palo Alto's U-boot. In our custom U-boot we then boot an OpenWrt RAM image to verify disk/flash access and to take full backups.
-After that we boot into the custom U-oot using palo alto's U-oot again to flash the SPI flash chip with our custom U-boot. This permanently sets our U-boot to handle booting.
+We boot our custom U-Boot using Palo Alto's U-Boot. In our custom U-Boot we then boot an OpenWrt RAM image to verify disk/flash access and to take full backups.
+After that we boot into the custom U-Boot using Palo Alto's U-Boot again to flash the SPI flash chip with our custom U-Boot. This permanently sets our U-Boot to handle booting.
 
 ### 7. Files
 
@@ -182,8 +182,8 @@ them).
    - Windows: Tftpd64. Linux: `tftpd-hpa`.
    - Put the 3 files in the tftp server's directory.
    - Windows firewall: allow the TFTP server (UDP 69).
-2. Network cable: MGT Port to a switch/router to which your PC is connected as well.
-3. Make your PC's network interface a static ip like shown in the below table.
+2. Network cable: MGT port to a switch/router to which your PC is connected as well.
+3. Make your PC's network interface a static IP, as shown in the table below.
 4. Tftpd64: "Server interfaces" → `192.168.2.10`.
 
 Addresses used below:
@@ -231,11 +231,11 @@ setenv serverip 192.168.2.10
 run linux_ram
 ```
 
-- It Loads the initramfs image over TFTP and boots it (~30 s).
+- It loads the initramfs image over TFTP and boots it (~30 s).
 - A single "Receive error" / retry during the transfer is normal here.
 - Press **Enter** when the boot messages stop → root shell
   `root@OpenWrt:~#`.
-- RAM image: root password `password`, MGT's ip is set to 192.168.2.1.
+- RAM image: root password `password`, MGT's IP is set to 192.168.2.1.
 - Nothing is written to the eMMC or SPI yet.
 
 Check the eMMC and SPI flash are seen:
@@ -274,7 +274,7 @@ certutil -hashfile pa220-mmcblk0.img SHA256
 ```
 The hashes must match. Keep both files somewhere safe.
 
-- The failsafe SPI chip is never written by this procedure, no backup
+- The failsafe SPI chip is never written by this procedure; no backup
   needed.
 
 ### 12. Flash our U-Boot
@@ -335,8 +335,8 @@ step).
 
 Power-cycle the PA-220 (power cable out/in).
 
-1. Terminal at **115200**. When powered on, you may see garbage lines or nothing at all for some seconds, this is fine. (Palo Alto's early
-   stages print at 9600 baud)
+1. Terminal at **115200**. When powered on, you may see garbage lines or nothing at all for a few seconds; this is fine (Palo Alto's early
+   stages print at 9600 baud).
 2. Our U-Boot: 2 s countdown, finds no kernel yet → `pa-220#`.
 3. Status LEDs: STAT orange, ALM green at the prompt.
 
@@ -350,7 +350,7 @@ saveenv
 ## Part 3: Installing OpenWrt
 
 ### General outline of the procedure:
-Using our custom U-boot, we boot into the OpenWrt RAM image to finally erase and reformat the internal eMMC storage to install OpennWrt permanently.
+Using our custom U-Boot, we boot into the OpenWrt RAM image to finally erase and reformat the internal eMMC storage to install OpenWrt permanently.
 
 
 ### 14. Install OpenWrt to the eMMC
