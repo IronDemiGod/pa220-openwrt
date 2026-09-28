@@ -53,7 +53,6 @@ Cavium OCTEON III CN7130 (4 × MIPS64 at 1 GHz), 8 GB DDR,
 - [Upgrading Guide](docs/UPGRADING.md)
 
 ## Recovery
-- ## Upgrading OpenWrt
 - [Recovery Suggestions](docs/RECOVERY.md)
 
 ## License
