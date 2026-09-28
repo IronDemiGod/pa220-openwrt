@@ -1,6 +1,17 @@
 # PA-220 OpenWrt Features
 
+- [Hardware support](#hardware-support)
+- [Network](#network)
+- [Performance](#performance)
+- [LEDs](#leds)
+- [Temperatures and RTC](#temperatures-and-rtc)
+- [LuCI pages](#luci-pages)
+- [U-Boot](#u-boot)
+- [Included packages](#included-packages)
+- [Other defaults](#other-defaults)
+- [Not supported / untested](#not-supported--untested)
 
+---
 
 ## Hardware support
 
