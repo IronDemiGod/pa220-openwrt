@@ -7,8 +7,8 @@
 #                           4 blink act, 5 tx, 6 copper link, 7 1000 link,
 #                           8 off, 9 on, b blink
 #                    right: 0 copper link, 1 link+blink act, 2 link+blink rx,
-#                           3 act, 4 blink act, 5 100 link, 6 100/1000 link,
-#                           7 100 link, 8 off, 9 on, b blink
+#                           3 act, 4 blink act, 5 100 or fiber link,
+#                           6 100/1000 link, 7 100 link, 8 off, 9 on, b blink
 #   front       1/0  front-panel LEDs HA, ALM, STAT, TEMP on/off
 #   night_off   1/0  switch all of them off between night_start and night_end
 #   night_start HH:MM

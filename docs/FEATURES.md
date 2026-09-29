@@ -188,7 +188,7 @@ Performance page live status:
 | p1 | 256 MiB ext3 | Kernel `/vmlinux.oct3-mp` + backup `/vmlinux.oct3-mp.bak`, mounted at `/boot` |
 | p2 | Rest (~27 GiB) | ext4 root |
 
-(p1 is ext3 due to a limitation of Palo Alto's early bootloader stages.)
+(p1 is ext3: the format the old SDK U-Boot `ext2load` is proven to read.)
 
 ## U-Boot
 

@@ -40,9 +40,9 @@ return view.extend({
 		o.value('2', _('On: link, blink: receive'));
 		o.value('3', _('On: activity'));
 		o.value('4', _('Blink: activity'));
-		o.value('5', _('On: 100 Mbps link'));
+		o.value('5', _('On: 100 Mbps or fiber link'));
 		o.value('6', _('On: 100 or 1000 Mbps link'));
-		o.value('7', _('On: 100 Mbps link (copper)'));
+		o.value('7', _('On: 100 Mbps link'));
 		o.value('8', _('Always off'));
 		o.value('9', _('Always on'));
 		o.value('b', _('Always blinking'));

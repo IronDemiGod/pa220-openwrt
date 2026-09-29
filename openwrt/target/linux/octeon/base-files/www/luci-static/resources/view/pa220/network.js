@@ -48,7 +48,7 @@ function statsTable(st) {
 	var rows = [
 		[ _('Fast path'), st.enabled ? _('on') : _('off') ],
 		[ _('Active on ports'), st.ports.length ? st.ports.join(', ') :
-			(st.enabled ? _('none (no port is in a plain bridge, see the conditions above)') : '-') ],
+			(st.enabled ? _('none (no port qualifies, see the conditions above)') : '-') ],
 		[ _('Frames forwarded by the fast path'), num(st.forwarded) ],
 		[ _('Frames passed to the bridge (learning / refresh)'), num(st.to_bridge) ],
 		[ _('Unknown destination (handled by Linux)'), num(st.miss) ],
@@ -89,7 +89,7 @@ return view.extend({
 
 		o = s.option(form.Flag, 'fastpath', _('Enable bridge fast path'),
 			_('Frames to a known device on another port of the same bridge are sent straight back out by the driver, bypassing the Linux network stack. Broadcasts, multicast, unknown destinations, traffic for this device and routed/internet traffic still go through Linux.') + '<br />' +
-			_('Works with VLAN filtering bridges (802.1Q tags are added or removed per port as configured). Stays off automatically for a port when its bridge uses 802.1ad or MST, the port is blocked by STP or isolated, bridge firewall rules (nftables bridge family / ebtables) exist, or a packet capture (tcpdump) is running. Per-port traffic shaping and bridge statistics do not see fast path frames.'));
+			_('Works with VLAN filtering bridges (802.1Q tags are added or removed per port as configured). Stays off automatically for a port when its bridge uses 802.1ad or MST, the port is not in STP forwarding state, isolated or locked, bridge firewall rules (nftables bridge family / ebtables) exist, or a packet capture (tcpdump) is running. Per-port traffic shaping and bridge statistics do not see fast path frames.'));
 		o.default = '1';
 		o.rmempty = false;
 
