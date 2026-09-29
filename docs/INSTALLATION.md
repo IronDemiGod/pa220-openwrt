@@ -412,20 +412,8 @@ Done. OpenWrt is now permanently installed on your PA-220.
 
 ## Upgrading later
 
-LuCI → System → Backup / Flash Firmware → flash
-`openwrt-octeon-generic-pan_pa-220-targz-sysupgrade.tar` (keep settings on).
-Or on the console:
-```
-sysupgrade -v /tmp/openwrt-octeon-generic-pan_pa-220-targz-sysupgrade.tar
-```
-Only the targz image. The previous kernel is kept as `/vmlinux.oct3-mp.bak`
-(U-Boot loads it if `/vmlinux.oct3-mp` is missing).
+[Upgrade Guide](UPGRADING.md)
 
 ## Recovery
 
-- OpenWrt broken: at the U-Boot countdown press any key → `pa-220#` →
-  `run linux_ram` → `pa220-install 192.168.2.10`.
-- Our U-Boot broken: Palo Alto's U-Boot starts instead (9600 baud,
-  `Kingfisher(ram) (mp)#`) → redo step 12.
-- Our U-Boot hangs: the CPLD switches to the failsafe chip (Palo Alto's
-  failsafe U-Boot, 9600). Don't write anything from there; ask for help.
+[Recovery](RECOVERY.md)
