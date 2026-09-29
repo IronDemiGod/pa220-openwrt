@@ -74,13 +74,10 @@ This makes the PA-220 a fully capable Gigabit switch/router/firewall, and more.
 ## Recovery
 - [Recovery Suggestions](docs/RECOVERY.md)
 
----
 
 ## Building
 - [Build Environment setup](docs/BUILD.md)
 
 ---
 
-## License
-
-[License](LICENSE.md)
+- Not affiliated with or endorsed by Palo Alto Networks. Use at your own risk; the installation wipes PanOS, parts of the PanOS bootloader and voids any warranty or support.
