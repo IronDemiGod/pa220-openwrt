@@ -84,9 +84,31 @@ Needs the **Cavium OCTEON SDK toolchain** (`tools-gcc-4.7`, containing
 with the OCTEON SDK. The binaries are static 32-bit x86, they run on any
 x86_64 Linux as they are.
 
+Get the toolchain (once):
+
+1. Download OCTEON SDK 5.1 (1.1 GB) from
+   [jianyongchen/OCTEON-SDK](https://github.com/jianyongchen/OCTEON-SDK):
+   ```
+   cd ~
+   wget https://github.com/jianyongchen/OCTEON-SDK/raw/master/OCTEON-SDK-5.1.tbz
+   ```
+2. Check the download:
+   ```
+   sha256sum OCTEON-SDK-5.1.tbz
+   ```
+   Must be `45a882624617d692acbd2bdb35d48a9a37ca7b50d5935ce24b4a58ef9c360d12`.
+3. Extract only the toolchain (~4 GB tar, takes a few minutes):
+   ```
+   tar xjf OCTEON-SDK-5.1.tbz ./OCTEON-SDK/tools-gcc-4.7
+   ```
+   → `~/OCTEON-SDK/tools-gcc-4.7`. The `.tbz` can be deleted afterwards.
+   The separate `tools-5.1-build-52.tgz` in that repo is not needed.
+
+Build:
+
 ```
 cd ~/pa220-openwrt/u-boot
-./build.sh /path/to/tools-gcc-4.7
+./build.sh ~/OCTEON-SDK/tools-gcc-4.7
 ```
 
 - Output: `u-boot/u-boot-octeon_pa220.bin`.
