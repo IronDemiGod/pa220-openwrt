@@ -101,7 +101,7 @@ Measured (bridged gigabit internet):
 - Larger buffer pool.
 - Hardware receive checksum.
 - Tunable live (no reboot):
-  - GRO: off by default (bridged upload 945 Mbit/s off vs 800 on)
+  - GRO: off by default
   - receive interrupt delay: 1–15 ticks, default 1
   - interrupt after N packets: 0–255, default 0 (off)
 - Packet steering (RPS) off by default. Hardware already spreads the load,

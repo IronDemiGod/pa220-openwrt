@@ -1,9 +1,8 @@
 #!/bin/sh
 #
 # PA-220: default network driver tuning (LuCI Network -> PA-220 Performance):
-# bridge fast path on, GRO off (measured: bridged upload 945 vs 800 Mbit/s
-# with GRO on), the rest as the driver's own defaults. Existing settings
-# are kept.
+# bridge fast path on, GRO off, the rest as the driver's own defaults.
+# Existing settings are kept.
 #
 
 . /lib/functions.sh
