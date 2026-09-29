@@ -30,7 +30,7 @@ This makes the PA-220 a fully capable Gigabit router/firewall, and more.
   - Temperatures.
   - Network performance (fast path, RX settings, statistics).
 - **Boot time:** 28 seconds. 
-- **Custom U-Boot** (Cavium SDK U-Boot 2013.07):
+- **Custom U-Boot:**
   - Much faster kernel loading, backup kernel fallback, TFTP boot, LED control.
 - **RAM and storage:** 27.6 GB eMMC storage, 8 GB DDR memory.
 
