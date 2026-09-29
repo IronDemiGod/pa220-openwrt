@@ -59,7 +59,7 @@ make -j$(nproc)
 | File | Use |
 |---|---|
 | `openwrt-octeon-generic-pan_pa-220-initramfs-kernel.bin` | RAM image (TFTP boot, installer / recovery) |
-| `openwrt-octeon-generic-pan_pa-220-targz-sysupgrade.tar` | I
+| `openwrt-octeon-generic-pan_pa-220-targz-sysupgrade.tar` | Sysupgrade |
 
 (The `squashfs-sysupgrade.tar` is also built but is **not** usable on the PA-220.)
 
