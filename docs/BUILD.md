@@ -13,7 +13,7 @@ WSL2 only:
 - Remove the Windows paths from `PATH` before every build (OpenWrt refuses
   paths with spaces):
   ```
-  export PATH=$(echo "$PATH" | tr ':' '\n' | grep -v '^/mnt/c'
+  export PATH=$(echo "$PATH" | tr ':' '\n' | grep -v '^/mnt/c' | paste -sd:)
   ```
 
 ### 1. Install the build dependencies
@@ -31,7 +31,12 @@ git clone https://github.com/IronDemiGod/pa220-openwrt.git
 ```
 
 Layout:
- SDK U-Boot 2013.07 + PA-220 port) + `build.sh` |
+
+| Folder | Content |
+|---|---|
+| `openwrt/` | PA-220 files at their OpenWrt paths + `setup.sh` + `pa220.diffconfig` |
+| `u-boot/` | U-Boot source (Cavium OCTEON SDK U-Boot 2013.07 + PA-220 port) + `build.sh` |
+| `docs/` | Documentation |
 
 ### 3. Create the OpenWrt build tree
 
@@ -43,6 +48,9 @@ cd ~
 What it does:
 1. Clones official OpenWrt `v25.12.4` into `~/openwrt-pa220`
    (git.openwrt.org, falls back to the GitHub mirror).
+2. Copies the PA-220 files from `openwrt/` into it.
+3. Updates and installs the package feeds.
+4. Creates `.config` from `pa220.diffconfig` (`make defconfig`).
 
 Only needed once.
 
@@ -53,7 +61,7 @@ cd ~/openwrt-pa220
 make -j$(nproc)
 ```
 
-- Build error → run again with `make -j1 V=s` to see the full
+- Build error → run again with `make -j1 V=s` to see the full error.
 - Output in `bin/targets/octeon/generic/`:
 
 | File | Use |
@@ -67,13 +75,18 @@ make -j$(nproc)
 
 Edit the files in `~/pa220-openwrt/openwrt/` (not in the build tree), then:
 
+```
+~/pa220-openwrt/openwrt/setup.sh --sync ~/openwrt-pa220
+cd ~/openwrt-pa220
+make -j$(nproc)
+```
 
 - `--sync` copies only changed files (unchanged files keep their time stamps,
   so `make` only rebuilds what changed).
 - Files deleted in the repo are removed from the build tree / restored to
   OpenWrt's version.
 - No clone, no feed update.
-- 
+
 ### 6. Build U-Boot (optional)
 
 Only needed to change U-Boot. The prebuilt `u-boot-octeon_pa220.bin` is
@@ -113,4 +126,4 @@ cd ~/pa220-openwrt/u-boot
 
 - Output: `u-boot/u-boot-octeon_pa220.bin`.
 - Test a new build from RAM before flashing it (see the
-  [Installation Guide](docs/INSTALLATION.md), step 9).
+  [Installation Guide](INSTALLATION.md), step 9).
