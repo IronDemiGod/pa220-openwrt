@@ -27,7 +27,7 @@ setp() {
 yn() { [ "$1" = 1 ] && echo Y || echo N; }
 
 apply() {
-	setp rx_gro "$(yn "$(cfg rx_gro 1)")"
+	setp rx_gro "$(yn "$(cfg rx_gro 0)")"
 	setp rx_irq_delay "$(cfg rx_irq_delay 1)"
 	setp rx_irq_pkts "$(cfg rx_irq_pkts 0)"
 	setp fastpath "$(yn "$(cfg fastpath 1)")"
@@ -41,7 +41,7 @@ stats() {
 }
 
 status() {
-	echo "settings: fastpath=$(cfg fastpath 1) rx_gro=$(cfg rx_gro 1)" \
+	echo "settings: fastpath=$(cfg fastpath 1) rx_gro=$(cfg rx_gro 0)" \
 		"rx_irq_delay=$(cfg rx_irq_delay 1) rx_irq_pkts=$(cfg rx_irq_pkts 0)"
 	echo "driver:   fastpath=$(cat $P/fastpath 2>/dev/null) rx_gro=$(cat $P/rx_gro 2>/dev/null)" \
 		"rx_irq_delay=$(cat $P/rx_irq_delay 2>/dev/null) rx_irq_pkts=$(cat $P/rx_irq_pkts 2>/dev/null)"

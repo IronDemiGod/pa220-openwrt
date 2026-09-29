@@ -97,8 +97,8 @@ return view.extend({
 		s.addremove = false;
 
 		o = s.option(form.Flag, 'rx_gro', _('GRO (generic receive offload)'),
-			_('Merges received TCP segments. Helps traffic that ends on this device; bridged or routed packets have to be split again before sending, so switching off may lower the CPU load for pure forwarding.'));
-		o.default = '1';
+			_('Merges received TCP segments. Helps traffic that ends on this device; bridged or routed packets have to be split again before sending, so off (default) is faster for pure forwarding: bridged upload 945 Mbit/s off vs 800 Mbit/s on.'));
+		o.default = '0';
 		o.rmempty = false;
 
 		o = s.option(form.Value, 'rx_irq_delay', _('Receive interrupt delay'),
