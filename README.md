@@ -9,7 +9,7 @@ A port of OpenWrt to the Palo Alto Networks PA-220
 firewall. OpenWrt runs from the internal eMMC, initialised by a custom U-Boot build
 installed next to Palo Alto's bootloaders in SPI flash.
 
-This makes the PA-220 a fully capable Gigabit router/firewall, and more.
+This makes the PA-220 a fully capable Gigabit switch/router/firewall, and more.
 
 ---
 
