@@ -89,9 +89,15 @@ jobs:
         run: |
           root=$(ls -d build_dir/target-*/root-octeon)
           ls -l "$root"/usr/sbin/openvpn
-          find "$root"/lib/modules -name 'ovpn.ko' -o -name 'gcm.ko' -o -name 'wireguard.ko' | tee mods.txt
-          for m in ovpn gcm wireguard; do
+          find "$root"/lib/modules -name 'ovpn.ko' -o -name 'wireguard.ko' | tee mods.txt
+          for m in ovpn wireguard; do
             grep -q "/$m.ko$" mods.txt || { echo "::error::$m.ko missing from the rootfs"; exit 1; }
+          done
+          # gcm(aes) for OpenVPN DCO / IPsec: GCM is built into OpenWrt's
+          # kernel (no gcm.ko), AES/GHASH come from the COP2 driver
+          kcfg=$(ls build_dir/target-*/linux-octeon_generic/linux-*/.config)
+          for s in CRYPTO_GCM CRYPTO_AES_OCTEON; do
+            grep -E "^CONFIG_$s=[ym]$" "$kcfg" || { echo "::error::CONFIG_$s not in the kernel"; exit 1; }
           done
           ls -l bin/targets/octeon/generic/
 
