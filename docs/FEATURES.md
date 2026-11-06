@@ -115,7 +115,8 @@ Measured (bridged gigabit internet):
 ### Crypto
 
 - COP2 AES and GHASH drivers: faster AES-CBC, AES-CTR and AES-GCM for IPsec
-  (strongSwan) and anything else using the kernel crypto API.
+  (strongSwan), OpenVPN with data channel offload, and anything else using
+  the kernel crypto API.
 - WireGuard doesn't use AES, so no gain there.
 
 ## LEDs
@@ -225,6 +226,13 @@ On top of the standard OpenWrt set:
 - VPN:
   - WireGuard + LuCI support
   - strongSwan (IPsec) + LuCI app
+  - OpenVPN + LuCI app, with data channel offload (`ovpn` kernel module):
+    with an AES-GCM data cipher, tunnel traffic is encrypted in the kernel
+    on the COP2 unit instead of in userspace OpenSSL. Offload needs a `tun`
+    device and an AEAD data cipher (AES-GCM or ChaCha20-Poly1305). Options
+    it can't offload (e.g. `--fragment`, `tap`) make OpenVPN run the tunnel
+    in userspace; the log says whether DCO is used. The tunnel is routed
+    traffic: the bridge fast path doesn't touch it, flow offloading can.
 - Storage: `fdisk`, `sfdisk`, `e2fsprogs`, `tune2fs`, `dumpe2fs`,
   `block-mount`, CIFS/SMB mounting
 - Tools: `htop`, `rsync`, `mdio-tools`
@@ -244,5 +252,6 @@ On top of the standard OpenWrt set:
 - USB: both xHCI controllers enabled, not tested with a device yet.
 - PCIe: nothing attached on the PA-220, disabled.
 - VLAN fast path: compile-tested only.
+- OpenVPN data channel offload: not tested on the PA-220 yet.
 - Routed fast path: none. Routed traffic uses the normal kernel path +
   flow offloading.
