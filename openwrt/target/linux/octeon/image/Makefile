@@ -83,6 +83,7 @@ define Device/pan_pa-220
   DEVICE_DTS := cn7130_pan_pa-220
   DEVICE_PACKAGES += luci fdisk e2fsprogs htop mdio-tools kmod-hwmon-tmp421 kmod-fs-cifs cifsmount rsync \
 	kmod-wireguard wireguard-tools luci-proto-wireguard \
+	openvpn-openssl kmod-ovpn-backports kmod-crypto-gcm luci-app-openvpn \
 	strongswan strongswan-mod-openssl strongswan-default luci-app-strongswan-swanctl kmod-crypto-sha1 \
 	tune2fs dumpe2fs block-mount kmod-rtc-ds1307 sfdisk
   # The leading "-" replaces U-Boot's autoboot arguments (PanOS init=,
