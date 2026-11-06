@@ -127,3 +127,10 @@ cd ~/pa220-openwrt/u-boot
 - Output: `u-boot/u-boot-octeon_pa220.bin`.
 - Test a new build from RAM before flashing it (see the
   [Installation Guide](INSTALLATION.md), step 9).
+
+### Building on GitHub Actions
+
+`.github/workflows/build.yml` runs the same steps (`setup.sh`, `make`) on a
+GitHub runner. It starts on pushes that change `openwrt/`, or by hand from
+the Actions tab (Run workflow). The images are under Artifacts on the run
+page. A first build takes 2–3 hours.
