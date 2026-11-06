@@ -1,0 +1,114 @@
+name: Build PA-220 OpenWrt
+
+# Full OpenWrt build (toolchain + kernel + packages) for the PA-220 with
+# openwrt/setup.sh, the same way as docs/BUILD.md. First run takes 2-3 h;
+# the download cache makes later runs a bit faster.
+#
+# Images: run page -> Artifacts -> pa220-images-<sha>.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+      - 'claude/**'
+    paths:
+      - 'openwrt/**'
+      - '.github/workflows/build.yml'
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    env:
+      BUILD_DIR: /mnt/openwrt-pa220
+    steps:
+      - name: Free disk space
+        run: |
+          df -h / /mnt
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /opt/hostedtoolcache/CodeQL /usr/local/share/boost \
+            /usr/local/.ghcup /usr/share/swift
+          sudo docker image prune --all --force >/dev/null || true
+          sudo mkdir -p "$BUILD_DIR"
+          sudo chown "$(id -u):$(id -g)" "$BUILD_DIR"
+          df -h / /mnt
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang flex bison g++ gawk \
+            gettext git libncurses-dev libssl-dev python3 python3-dev \
+            python3-setuptools rsync swig unzip zlib1g-dev file wget \
+            ca-certificates
+
+      - uses: actions/checkout@v4
+
+      - name: Set up the OpenWrt tree (openwrt/setup.sh)
+        run: ./openwrt/setup.sh "$BUILD_DIR"
+
+      - name: Check the configuration
+        working-directory: ${{ env.BUILD_DIR }}
+        run: |
+          grep -E '^CONFIG_TARGET_octeon_generic_DEVICE_pan_pa-220=y' .config
+          for s in PACKAGE_openvpn-openssl PACKAGE_kmod-ovpn-backports \
+                   PACKAGE_kmod-crypto-gcm PACKAGE_luci-app-openvpn \
+                   OPENVPN_openssl_ENABLE_DCO PACKAGE_kmod-wireguard \
+                   PACKAGE_strongswan; do
+            grep -q "^CONFIG_$s=y" .config || { echo "::error::CONFIG_$s not enabled"; exit 1; }
+            echo "CONFIG_$s=y"
+          done
+
+      - name: Restore download cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.BUILD_DIR }}/dl
+          key: dl-${{ hashFiles('openwrt/setup.sh', 'openwrt/pa220.diffconfig', 'openwrt/target/linux/octeon/image/Makefile') }}
+          restore-keys: dl-
+
+      - name: Download sources
+        working-directory: ${{ env.BUILD_DIR }}
+        run: make download -j8 || make download -j1 V=s
+
+      - name: Build
+        working-directory: ${{ env.BUILD_DIR }}
+        run: |
+          if ! make -j$(($(nproc) + 1)) BUILD_LOG=1; then
+            echo "::warning::parallel build failed, rerunning with -j1 V=s for the error"
+            make -j1 V=s 2>&1 | tail -n 300
+            exit 1
+          fi
+
+      - name: Check the image contents
+        working-directory: ${{ env.BUILD_DIR }}
+        run: |
+          root=$(ls -d build_dir/target-*/root-octeon)
+          ls -l "$root"/usr/sbin/openvpn
+          find "$root"/lib/modules -name 'ovpn.ko' -o -name 'gcm.ko' -o -name 'wireguard.ko' | tee mods.txt
+          for m in ovpn gcm wireguard; do
+            grep -q "/$m.ko$" mods.txt || { echo "::error::$m.ko missing from the rootfs"; exit 1; }
+          done
+          ls -l bin/targets/octeon/generic/
+
+      - name: Upload images
+        uses: actions/upload-artifact@v4
+        with:
+          name: pa220-images-${{ github.sha }}
+          if-no-files-found: error
+          path: |
+            ${{ env.BUILD_DIR }}/bin/targets/octeon/generic/*pan_pa-220*
+            ${{ env.BUILD_DIR }}/bin/targets/octeon/generic/sha256sums
+            ${{ env.BUILD_DIR }}/bin/targets/octeon/generic/config.buildinfo
+
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pa220-logs-${{ github.sha }}
+          path: ${{ env.BUILD_DIR }}/logs
+          if-no-files-found: ignore
