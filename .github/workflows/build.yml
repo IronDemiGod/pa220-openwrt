@@ -111,6 +111,12 @@ jobs:
             grep -E "^CONFIG_$s=[ym]$" "$kcfg" || { echo "::error::CONFIG_$s not in the kernel"; exit 1; }
           done
           ls -l bin/targets/octeon/generic/
+          # the only image sysupgrade/LuCI can install on the PA-220
+          for f in openwrt-octeon-generic-pan_pa-220-targz-sysupgrade.tar \
+                   openwrt-octeon-generic-pan_pa-220-initramfs-kernel.bin; do
+            [ -s "bin/targets/octeon/generic/$f" ] || { echo "::error::$f was not built"; exit 1; }
+          done
+          tar -tf bin/targets/octeon/generic/openwrt-octeon-generic-pan_pa-220-targz-sysupgrade.tar
 
       - name: Upload images
         uses: actions/upload-artifact@v4
