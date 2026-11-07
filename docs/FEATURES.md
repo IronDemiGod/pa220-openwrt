@@ -252,6 +252,6 @@ On top of the standard OpenWrt set:
 - USB: both xHCI controllers enabled, not tested with a device yet.
 - PCIe: nothing attached on the PA-220, disabled.
 - VLAN fast path: compile-tested only.
-- OpenVPN data channel offload: not tested on the PA-220 yet.
+- OpenVPN: tested with Proton VPN (UDP); DCO throughput not measured yet.
 - Routed fast path: none. Routed traffic uses the normal kernel path +
   flow offloading.
