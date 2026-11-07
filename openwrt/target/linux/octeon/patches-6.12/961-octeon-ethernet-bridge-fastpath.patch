@@ -19,7 +19,7 @@ counters in fastpath_stats.
 ---
 --- a/drivers/staging/octeon/Makefile
 +++ b/drivers/staging/octeon/Makefile
-@@ -17,3 +17,4 @@
+@@ -17,3 +17,4 @@ octeon-ethernet-y += ethernet-rx.o
  octeon-ethernet-y += ethernet-sgmii.o
  octeon-ethernet-y += ethernet-spi.o
  octeon-ethernet-y += ethernet-tx.o
@@ -522,7 +522,7 @@ counters in fastpath_stats.
 +}
 --- a/drivers/staging/octeon/ethernet-rx.c
 +++ b/drivers/staging/octeon/ethernet-rx.c
-@@ -344,6 +344,10 @@
+@@ -341,6 +341,10 @@ static int cvm_oct_poll(struct oct_rx_group *rx_group, int budget)
  				continue;
  		}
  
@@ -535,7 +535,7 @@ counters in fastpath_stats.
  		 * in the FPA pool and the packet fits in a single
 --- a/drivers/staging/octeon/ethernet.c
 +++ b/drivers/staging/octeon/ethernet.c
-@@ -1001,8 +1001,22 @@
+@@ -1033,8 +1033,22 @@ static int cvm_oct_probe(struct platform_device *pdev)
  		}
  	}
  
@@ -553,13 +553,13 @@ counters in fastpath_stats.
 +	}
 +
  	cvm_oct_tx_initialize();
- 	cvm_oct_rx_initialize();
+ 	cvm_oct_rx_initialize(pdev);
 +	cvm_oct_fastpath_init();
  
  	/*
  	 * 150 uS: about 10 1500-byte packets at 1GE.
-@@ -1018,6 +1032,8 @@
- {
+@@ -1051,6 +1065,8 @@ static void cvm_oct_remove(struct platform_device *pdev)
+ 	struct octeon_ethernet_platform *plat = platform_get_drvdata(pdev);
  	int port;
  
 +	cvm_oct_fastpath_exit();
@@ -569,7 +569,7 @@ counters in fastpath_stats.
  	atomic_inc_return(&cvm_oct_poll_queue_stopping);
 --- a/drivers/staging/octeon/octeon-ethernet.h
 +++ b/drivers/staging/octeon/octeon-ethernet.h
-@@ -53,6 +53,14 @@
+@@ -54,6 +54,14 @@ struct octeon_ethernet {
  	int queue;
  	/* Hardware fetch and add to count outstanding tx buffers */
  	int fau;
@@ -584,7 +584,7 @@ counters in fastpath_stats.
  	/* My netdev. */
  	struct net_device *netdev;
  	/*
-@@ -104,4 +112,8 @@
+@@ -118,4 +126,8 @@ extern u64 cvm_oct_tx_poll_interval;
  
  extern int rx_napi_weight;
  
