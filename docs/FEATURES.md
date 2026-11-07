@@ -234,7 +234,10 @@ On top of the standard OpenWrt set:
     in userspace; the log says whether DCO is used. The tunnel is routed
     traffic: the bridge fast path doesn't touch it, flow offloading can.
 - Storage: `fdisk`, `sfdisk`, `e2fsprogs`, `tune2fs`, `dumpe2fs`,
-  `block-mount`, CIFS/SMB mounting
+  `block-mount`, CIFS/SMB mounting, NTFS (kernel `ntfs3` driver)
+- USB drives are mounted automatically when plugged in (`/mnt/sda1`, ...;
+  NTFS, FAT, ext4). Setting: LuCI → System → Mount Points → Anonymous
+  Mount. Not done in the RAM image.
 - Tools: `htop`, `rsync`, `mdio-tools`
 - Drivers:
   - TMP421 (temperatures)
@@ -249,7 +252,8 @@ On top of the standard OpenWrt set:
 
 ## Not supported / untested
 
-- USB: both xHCI controllers enabled, not tested with a device yet.
+- USB: both xHCI controllers enabled, not tested with a device yet (USB
+  drive auto-mount included but untested).
 - PCIe: nothing attached on the PA-220, disabled.
 - VLAN fast path: compile-tested only.
 - OpenVPN: tested with Proton VPN (UDP); DCO throughput not measured yet.

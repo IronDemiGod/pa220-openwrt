@@ -1,0 +1,29 @@
+#!/bin/sh
+#
+# PA-220 installed on eMMC: mount USB drives automatically when they are
+# plugged in (block-mount "anonymous mount": /mnt/sda1, /mnt/sdb1, ...).
+# NTFS uses the kernel ntfs3 driver. Not set in the RAM (initramfs) image,
+# where pa220-install needs the eMMC partitions unmounted. Only once, so
+# a later change in LuCI (System -> Mount Points) survives sysupgrade.
+#
+
+. /lib/functions.sh
+
+case "$(board_name)" in
+pan,pa-220)
+	[ "$(awk '$2 == "/" { print $3 }' /proc/mounts | tail -1)" = "ext4" ] || exit 1
+	[ -f /etc/config/fstab ] || exit 1
+	touch /etc/config/pa220
+	uci -q get pa220.defaults.usb_automount >/dev/null && exit 0
+	uci -q get fstab.@global[0] >/dev/null || uci -q add fstab global >/dev/null
+	uci -q batch <<-EOT
+		set fstab.@global[0].anon_mount='1'
+		commit fstab
+		set pa220.defaults=defaults
+		set pa220.defaults.usb_automount='1'
+		commit pa220
+	EOT
+	;;
+esac
+
+exit 0
