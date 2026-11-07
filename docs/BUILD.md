@@ -46,7 +46,7 @@ cd ~
 ```
 
 What it does:
-1. Clones official OpenWrt `v25.12.4` into `~/openwrt-pa220`
+1. Clones official OpenWrt `v25.12.6` into `~/openwrt-pa220`
    (git.openwrt.org, falls back to the GitHub mirror).
 2. Copies the PA-220 files from `openwrt/` into it.
 3. Updates and installs the package feeds.
