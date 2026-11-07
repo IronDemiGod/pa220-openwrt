@@ -234,7 +234,8 @@ On top of the standard OpenWrt set:
     in userspace; the log says whether DCO is used. The tunnel is routed
     traffic: the bridge fast path doesn't touch it, flow offloading can.
 - Storage: `fdisk`, `sfdisk`, `e2fsprogs`, `tune2fs`, `dumpe2fs`,
-  `block-mount`, CIFS/SMB mounting, NTFS (kernel `ntfs3` driver)
+  `block-mount`, CIFS/SMB mounting, NTFS (kernel `ntfs3` driver,
+  `ntfsfix` from `ntfs-3g-utils` for "check filesystem before mount")
 - USB drives are mounted automatically when plugged in (`/mnt/sda1`, ...;
   NTFS, FAT, ext4). Setting: LuCI → System → Mount Points → Anonymous
   Mount. Not done in the RAM image.
