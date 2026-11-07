@@ -93,7 +93,13 @@ define Device/pan_pa-220
   CMDLINE := -root=/dev/mmcblk0p2 rootfstype=ext4 rootwait console=ttyS0,115200 pcie_octeon.pcie_disable=1
   # Upgrade image = *-targz-sysupgrade.tar (kernel + root .tar.gz), see
   # lib/upgrade/platform.sh. Metadata lets sysupgrade/LuCI check the board.
+  # Since OpenWrt 25.12.6 device IMAGES are only built for real filesystems
+  # (targz just gives *-targz-rootfs.tar.gz), so the targz upgrade image
+  # is an artifact made from the tar.gz root; same file name as before.
+  # IMAGE/sysupgrade.tar still gives the (unused) squashfs-sysupgrade.tar.
   IMAGE/sysupgrade.tar := sysupgrade-tar | append-metadata
+  ARTIFACTS := targz-sysupgrade.tar
+  ARTIFACT/targz-sysupgrade.tar := sysupgrade-tar rootfs=$(KDIR)/root.targz | append-metadata
   # 2.0 = eMMC layout p1 boot / p2 root (created by pa220-install).
   DEVICE_COMPAT_VERSION := 2.0
   DEVICE_COMPAT_MESSAGE := Needs the PA-220 eMMC layout (p1 boot, p2 root). Install with pa220-install from the RAM image. Do not force this upgrade.
