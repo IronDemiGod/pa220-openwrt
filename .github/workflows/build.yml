@@ -9,6 +9,10 @@ name: Build PA-220 OpenWrt
 on:
   workflow_dispatch:
   push:
+    # A pushed tag v* also publishes a GitHub release with the images,
+    # notes from .github/release-notes/<tag>.md (path filter not applied)
+    tags:
+      - 'v*'
     branches:
       - main
       - master
@@ -25,6 +29,8 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     timeout-minutes: 350
+    permissions:
+      contents: write
     env:
       BUILD_DIR: /mnt/openwrt-pa220
     steps:
@@ -110,6 +116,26 @@ jobs:
             ${{ env.BUILD_DIR }}/bin/targets/octeon/generic/*pan_pa-220*
             ${{ env.BUILD_DIR }}/bin/targets/octeon/generic/sha256sums
             ${{ env.BUILD_DIR }}/bin/targets/octeon/generic/config.buildinfo
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        working-directory: ${{ env.BUILD_DIR }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          notes="$GITHUB_WORKSPACE/.github/release-notes/$TAG.md"
+          [ -f "$notes" ] || { echo "::error::missing $notes"; exit 1; }
+          # U-Boot is built separately: carry over the binary from the
+          # latest published release
+          gh release download -R "$GITHUB_REPOSITORY" \
+            -p u-boot-octeon_pa220.bin -D "$RUNNER_TEMP"
+          out=bin/targets/octeon/generic
+          gh release create "$TAG" -R "$GITHUB_REPOSITORY" --verify-tag \
+            --title "$TAG" --notes-file "$notes" \
+            "$out/openwrt-octeon-generic-pan_pa-220-initramfs-kernel.bin" \
+            "$out/openwrt-octeon-generic-pan_pa-220-targz-sysupgrade.tar" \
+            "$RUNNER_TEMP/u-boot-octeon_pa220.bin"
 
       - name: Upload build logs on failure
         if: failure()
