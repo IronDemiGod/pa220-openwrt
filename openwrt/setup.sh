@@ -3,7 +3,7 @@
 # Set up an OpenWrt build tree for the Palo Alto Networks PA-220.
 #
 #   ./setup.sh [directory]          first time (default: ./openwrt-pa220):
-#                                   clone OpenWrt v25.12.4, copy the PA-220
+#                                   clone OpenWrt v25.12.6, copy the PA-220
 #                                   files over it, install the feeds, write
 #                                   the build configuration
 #   ./setup.sh --sync <directory>   after changing files here: copy them into
@@ -23,7 +23,7 @@ export LC_ALL=C
 
 OPENWRT_URL=https://git.openwrt.org/openwrt/openwrt.git
 OPENWRT_MIRROR=https://github.com/openwrt/openwrt.git	# official mirror
-OPENWRT_TAG=v25.12.4
+OPENWRT_TAG=v25.12.6
 MANIFEST=.pa220-files		# list of copied files, kept in the tree
 
 here=$(cd "$(dirname "$0")" && pwd)
