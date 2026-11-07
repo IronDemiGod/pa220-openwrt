@@ -70,7 +70,7 @@ jobs:
           for s in PACKAGE_openvpn-openssl PACKAGE_kmod-ovpn-backports \
                    PACKAGE_kmod-crypto-gcm PACKAGE_luci-app-openvpn \
                    OPENVPN_openssl_ENABLE_DCO PACKAGE_kmod-wireguard \
-                   PACKAGE_strongswan PACKAGE_kmod-fs-ntfs3 PACKAGE_block-mount; do
+                   PACKAGE_strongswan PACKAGE_kmod-fs-ntfs3 PACKAGE_ntfs-3g-utils PACKAGE_block-mount; do
             grep -q "^CONFIG_$s=y" .config || { echo "::error::CONFIG_$s not enabled"; exit 1; }
             echo "CONFIG_$s=y"
           done
