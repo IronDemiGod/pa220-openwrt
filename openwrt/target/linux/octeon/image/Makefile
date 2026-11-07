@@ -85,7 +85,7 @@ define Device/pan_pa-220
 	kmod-wireguard wireguard-tools luci-proto-wireguard \
 	openvpn-openssl kmod-ovpn-backports kmod-crypto-gcm luci-app-openvpn \
 	strongswan strongswan-mod-openssl strongswan-default luci-app-strongswan-swanctl kmod-crypto-sha1 \
-	tune2fs dumpe2fs block-mount kmod-fs-ntfs3 kmod-rtc-ds1307 sfdisk
+	tune2fs dumpe2fs block-mount kmod-rtc-ds1307 sfdisk
   # The leading "-" replaces U-Boot's autoboot arguments (PanOS init=,
   # 9600-baud console, mem=4096 ...). eMMC layout: p1 = boot (U-Boot loads
   # /vmlinux.oct3-mp from it), p2 = OpenWrt root. PCIe has nothing

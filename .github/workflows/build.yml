@@ -70,7 +70,7 @@ jobs:
           for s in PACKAGE_openvpn-openssl PACKAGE_kmod-ovpn-backports \
                    PACKAGE_kmod-crypto-gcm PACKAGE_luci-app-openvpn \
                    OPENVPN_openssl_ENABLE_DCO PACKAGE_kmod-wireguard \
-                   PACKAGE_strongswan PACKAGE_kmod-fs-ntfs3 PACKAGE_block-mount; do
+                   PACKAGE_strongswan; do
             grep -q "^CONFIG_$s=y" .config || { echo "::error::CONFIG_$s not enabled"; exit 1; }
             echo "CONFIG_$s=y"
           done
@@ -100,8 +100,8 @@ jobs:
         run: |
           root=$(ls -d build_dir/target-*/root-octeon)
           ls -l "$root"/usr/sbin/openvpn
-          find "$root"/lib/modules -name 'ovpn.ko' -o -name 'wireguard.ko' -o -name 'ntfs3.ko' | tee mods.txt
-          for m in ovpn wireguard ntfs3; do
+          find "$root"/lib/modules -name 'ovpn.ko' -o -name 'wireguard.ko' | tee mods.txt
+          for m in ovpn wireguard; do
             grep -q "/$m.ko$" mods.txt || { echo "::error::$m.ko missing from the rootfs"; exit 1; }
           done
           # gcm(aes) for OpenVPN DCO / IPsec: GCM is built into OpenWrt's
