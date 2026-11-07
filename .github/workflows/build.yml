@@ -8,6 +8,11 @@ name: Build PA-220 OpenWrt
 
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Publish a release with this tag (e.g. v1.0.2-beta, notes in .github/release-notes/<tag>.md); empty = build only'
+        required: false
+        default: ''
   push:
     # A pushed tag v* also publishes a GitHub release with the images,
     # notes from .github/release-notes/<tag>.md (path filter not applied)
@@ -118,11 +123,11 @@ jobs:
             ${{ env.BUILD_DIR }}/bin/targets/octeon/generic/config.buildinfo
 
       - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.release_tag != ''
         working-directory: ${{ env.BUILD_DIR }}
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ inputs.release_tag || github.ref_name }}
         run: |
           notes="$GITHUB_WORKSPACE/.github/release-notes/$TAG.md"
           [ -f "$notes" ] || { echo "::error::missing $notes"; exit 1; }
@@ -131,7 +136,8 @@ jobs:
           gh release download -R "$GITHUB_REPOSITORY" \
             -p u-boot-octeon_pa220.bin -D "$RUNNER_TEMP"
           out=bin/targets/octeon/generic
-          gh release create "$TAG" -R "$GITHUB_REPOSITORY" --verify-tag \
+          # creates the tag on the built commit if it does not exist yet
+          gh release create "$TAG" -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --title "$TAG" --notes-file "$notes" \
             "$out/openwrt-octeon-generic-pan_pa-220-initramfs-kernel.bin" \
             "$out/openwrt-octeon-generic-pan_pa-220-targz-sysupgrade.tar" \

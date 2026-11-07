@@ -134,3 +134,9 @@ cd ~/pa220-openwrt/u-boot
 GitHub runner. It starts on pushes that change `openwrt/`, or by hand from
 the Actions tab (Run workflow). The images are under Artifacts on the run
 page. A first build takes 2–3 hours.
+
+To publish a release: add `.github/release-notes/<tag>.md`, then Actions →
+Build PA-220 OpenWrt → Run workflow on `main` with **release_tag** set (e.g.
+`v1.0.2-beta`). The workflow builds the images, creates the tag and the
+release, and attaches the initramfs, the targz sysupgrade image and the
+U-Boot binary from the previous release.
