@@ -12,9 +12,9 @@ take effect at once. The defaults keep the previous behaviour.
 ---
 --- a/drivers/staging/octeon/ethernet-rx.c
 +++ b/drivers/staging/octeon/ethernet-rx.c
-@@ -37,6 +37,72 @@
- 	struct napi_struct napi;
- } oct_rx_group[16];
+@@ -32,6 +32,74 @@
+ 
+ static atomic_t oct_rx_ready = ATOMIC_INIT(0);
  
 +static bool rx_gro = true;
 +module_param(rx_gro, bool, 0644);
@@ -58,9 +58,11 @@ take effect at once. The defaults keep the previous behaviour.
 +		return -EINVAL;
 +	*(int *)kp->arg = n;
 +
-+	/* Apply to the running receive groups */
++	/* Apply to the running receive groups (one per bit, see rx_group[]) */
 +	if (atomic_read(&oct_rx_ready))
-+		for (i = 0; i < ARRAY_SIZE(oct_rx_group); i++)
++		for (i = 0;
++		     i < ARRAY_SIZE(((struct octeon_ethernet_platform *)0)->rx_group);
++		     i++)
 +			if (pow_receive_groups & BIT(i))
 +				cvm_oct_rx_set_irq_thr(i);
 +	return 0;
@@ -85,7 +87,7 @@ take effect at once. The defaults keep the previous behaviour.
  /**
   * cvm_oct_do_interrupt - interrupt handler.
   * @irq: Interrupt number.
-@@ -350,7 +416,10 @@
+@@ -345,7 +413,10 @@ static int cvm_oct_poll(struct oct_rx_group *rx_group, int budget)
  					dev->stats.rx_packets++;
  					dev->stats.rx_bytes += skb->len;
  				}
@@ -97,9 +99,9 @@ take effect at once. The defaults keep the previous behaviour.
  			} else {
  				/*
  				 * Drop any packet received for a device that
-@@ -486,28 +555,21 @@
+@@ -486,28 +557,21 @@ void cvm_oct_rx_initialize(struct platform_device *pdev)
  
- 		disable_irq_nosync(oct_rx_group[i].irq);
+ 		disable_irq_nosync(rx_group[i].irq);
  
 -		/* Enable POW interrupt when our port has at least one packet */
 +		/*

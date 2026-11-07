@@ -7,6 +7,17 @@ core) and 4096 packet buffers on the PA-220; both remain overridable with
 the existing module parameters. Deliver packets through GRO and
 advertise the receive checksum validation the PIP already performs.
 ---
+--- a/drivers/staging/octeon/ethernet-rx.c
++++ b/drivers/staging/octeon/ethernet-rx.c
+@@ -345,7 +345,7 @@ static int cvm_oct_poll(struct oct_rx_group *rx_group, int budget)
+ 					dev->stats.rx_packets++;
+ 					dev->stats.rx_bytes += skb->len;
+ 				}
+-				netif_receive_skb(skb);
++				napi_gro_receive(&rx_group->napi, skb);
+ 			} else {
+ 				/*
+ 				 * Drop any packet received for a device that
 --- a/drivers/staging/octeon/ethernet.c
 +++ b/drivers/staging/octeon/ethernet.c
 @@ -30,11 +30,12 @@
@@ -24,7 +35,7 @@ advertise the receive checksum validation the PIP already performs.
  
  static int pow_receive_group = 15;
  module_param(pow_receive_group, int, 0444);
-@@ -44,14 +45,15 @@
+@@ -44,14 +45,15 @@ MODULE_PARM_DESC(pow_receive_group, "\n"
  	"\tgroup. Also any other software can submit packets to this\n"
  	"\tgroup for the kernel to process.");
  
@@ -42,7 +53,7 @@ advertise the receive checksum validation the PIP already performs.
  
  int pow_send_group = -1;
  module_param(pow_send_group, int, 0644);
-@@ -455,6 +457,10 @@
+@@ -454,6 +456,10 @@ int cvm_oct_common_init(struct net_device *dev)
  	if (priv->queue != -1)
  		dev->features |= NETIF_F_SG | NETIF_F_IP_CSUM;
  
@@ -53,9 +64,9 @@ advertise the receive checksum validation the PIP already performs.
  	/* We do our own locking, Linux doesn't need to */
  	dev->lltx = true;
  	dev->ethtool_ops = &cvm_oct_ethtool_ops;
-@@ -728,6 +734,26 @@
- 		return -EINVAL;
- 	}
+@@ -760,6 +766,26 @@ static int cvm_oct_probe(struct platform_device *pdev)
+ 	if (cvm_oct_mac_addresses_deferred(pip))
+ 		return -EPROBE_DEFER;
  
 +	/*
 +	 * Board defaults for parameters not given on the command line. The
@@ -77,17 +88,6 @@ advertise the receive checksum validation the PIP already performs.
 +		receive_group_order ? 1 << receive_group_order : 1,
 +		num_packet_buffers);
 +
- 	cvm_oct_configure_common_hw();
+ 	cvm_oct_configure_common_hw(pdev);
  
  	cvmx_helper_initialize_packet_io_global();
---- a/drivers/staging/octeon/ethernet-rx.c
-+++ b/drivers/staging/octeon/ethernet-rx.c
-@@ -350,7 +350,7 @@
- 					dev->stats.rx_packets++;
- 					dev->stats.rx_bytes += skb->len;
- 				}
--				netif_receive_skb(skb);
-+				napi_gro_receive(&rx_group->napi, skb);
- 			} else {
- 				/*
- 				 * Drop any packet received for a device that
