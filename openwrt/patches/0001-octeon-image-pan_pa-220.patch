@@ -1,0 +1,45 @@
+PA-220: image definition (Device/pan_pa-220): device packages, kernel
+command line and the targz sysupgrade image.
+
+diff --git a/target/linux/octeon/image/Makefile b/target/linux/octeon/image/Makefile
+index 7b20247..9af32e4 100644
+--- a/target/linux/octeon/image/Makefile
++++ b/target/linux/octeon/image/Makefile
+@@ -75,6 +75,37 @@ define Device/ubnt_edgerouter-6p
+ endef
+ TARGET_DEVICES += ubnt_edgerouter-6p
+ 
++
++define Device/pan_pa-220
++  $(Device/ubnt_edgerouter-e300)
++  DEVICE_VENDOR := Palo Alto Networks
++  DEVICE_MODEL := PA-220
++  DEVICE_DTS := cn7130_pan_pa-220
++  DEVICE_PACKAGES += luci fdisk e2fsprogs htop mdio-tools kmod-hwmon-tmp421 kmod-fs-cifs cifsmount rsync \
++	kmod-wireguard wireguard-tools luci-proto-wireguard \
++	openvpn-openssl kmod-ovpn-backports kmod-crypto-gcm luci-app-openvpn \
++	strongswan strongswan-mod-openssl strongswan-default luci-app-strongswan-swanctl kmod-crypto-sha1 \
++	tune2fs dumpe2fs block-mount kmod-fs-ntfs3 ntfs-3g-utils kmod-rtc-ds1307 sfdisk
++  # The leading "-" replaces U-Boot's autoboot arguments (PanOS init=,
++  # 9600-baud console, mem=4096 ...). eMMC layout: p1 = boot (U-Boot loads
++  # /vmlinux.oct3-mp from it), p2 = OpenWrt root. PCIe has nothing
++  # attached on the PA-220; skip the failing BIST/link probe.
++  CMDLINE := -root=/dev/mmcblk0p2 rootfstype=ext4 rootwait console=ttyS0,115200 pcie_octeon.pcie_disable=1
++  # Upgrade image = *-targz-sysupgrade.tar (kernel + root .tar.gz), see
++  # lib/upgrade/platform.sh. Metadata lets sysupgrade/LuCI check the board.
++  # Since OpenWrt 25.12.6 device IMAGES are only built for real filesystems
++  # (targz just gives *-targz-rootfs.tar.gz), so the targz upgrade image
++  # is an artifact made from the tar.gz root; same file name as before.
++  # IMAGE/sysupgrade.tar still gives the (unused) squashfs-sysupgrade.tar.
++  IMAGE/sysupgrade.tar := sysupgrade-tar | append-metadata
++  ARTIFACTS := targz-sysupgrade.tar
++  ARTIFACT/targz-sysupgrade.tar := sysupgrade-tar rootfs=$(KDIR)/root.targz | append-metadata
++  # 2.0 = eMMC layout p1 boot / p2 root (created by pa220-install).
++  DEVICE_COMPAT_VERSION := 2.0
++  DEVICE_COMPAT_MESSAGE := Needs the PA-220 eMMC layout (p1 boot, p2 root). Install with pa220-install from the RAM image. Do not force this upgrade.
++endef
++TARGET_DEVICES += pan_pa-220
++
+ ERLITE_CMDLINE:=-mtdparts=phys_mapped_flash:512k(boot0)ro,512k(boot1)ro,64k(eeprom)ro root=/dev/sda2 rootfstype=squashfs,ext4 rootwait
+ define Device/ubnt_edgerouter-lite
+   DEVICE_VENDOR := Ubiquiti

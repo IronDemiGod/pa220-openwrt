@@ -35,6 +35,7 @@ Layout:
 | Folder | Content |
 |---|---|
 | `openwrt/` | PA-220 files at their OpenWrt paths + `setup.sh` + `pa220.diffconfig` |
+| `openwrt/patches/` | Changes to OpenWrt's own files (image definition, sysupgrade, network defaults, kernel config, ...) as patches |
 | `u-boot/` | U-Boot source (Cavium OCTEON SDK U-Boot 2013.07 + PA-220 port) + `build.sh` |
 | `docs/` | Documentation |
 
@@ -48,7 +49,8 @@ cd ~
 What it does:
 1. Clones official OpenWrt `v25.12.6` into `~/openwrt-pa220`
    (git.openwrt.org, falls back to the GitHub mirror).
-2. Copies the PA-220 files from `openwrt/` into it.
+2. Copies the PA-220 files from `openwrt/` into it and applies
+   `openwrt/patches/*.patch` to OpenWrt's own files.
 3. Updates and installs the package feeds.
 4. Creates `.config` from `pa220.diffconfig` (`make defconfig`).
 
@@ -86,6 +88,21 @@ make -j$(nproc)
 - Files deleted in the repo are removed from the build tree / restored to
   OpenWrt's version.
 - No clone, no feed update.
+
+Changing one of OpenWrt's own files (the ones in `openwrt/patches/`, e.g.
+`target/linux/octeon/image/Makefile`): edit it in the build tree, then
+write the patch again from the tree's git, keeping the description lines
+at the top of the patch:
+
+```
+cd ~/openwrt-pa220
+git diff v25.12.6 -- target/linux/octeon/image/Makefile
+```
+
+Replace everything from the `diff --git` line on in
+`openwrt/patches/0001-octeon-image-pan_pa-220.patch` with that output.
+A change to a file not covered by a patch yet goes into a new patch
+(`0007-...patch`, same format).
 
 ### 6. Build U-Boot (optional)
 
@@ -128,16 +145,53 @@ cd ~/pa220-openwrt/u-boot
 - Test a new build from RAM before flashing it (see the
   [Installation Guide](INSTALLATION.md), step 9).
 
-### Building on GitHub Actions
+### 7. Updating to a new OpenWrt release
 
-`.github/workflows/build.yml` runs the same steps (`setup.sh`, `make`) on a
-GitHub runner. It does not start on branch pushes: run it by hand from the
-Actions tab (Run workflow, pick the branch). Pushing a `v*` tag also starts
-it and publishes a release. The images are under Artifacts on the run
-page. A first build takes 2–3 hours.
+The PA-220 files in `openwrt/` are either new files (scripts, device tree,
+kernel patches `950-…`) or patches to OpenWrt's own files
+(`openwrt/patches/`). OpenWrt's changes to those files are kept; a patch
+that no longer fits stops `setup.sh` instead of silently undoing them.
 
-To publish a release: add `.github/release-notes/<tag>.md`, then Actions →
-Build PA-220 OpenWrt → Run workflow on `main` with **release_tag** set (e.g.
-`v1.0.2-beta`). The workflow builds the images, creates the tag and the
-release, and attaches the initramfs, the targz sysupgrade image and the
-U-Boot binary from the previous release.
+1. Set the new tag in `openwrt/setup.sh`: `OPENWRT_TAG=v25.12.7`.
+2. Set up a **new** build tree (`--sync` does not change the OpenWrt
+   version of an existing tree):
+   ```
+   ./pa220-openwrt/openwrt/setup.sh ~/openwrt-pa220-new
+   ```
+3. If it stops with `<patch> does not apply to OpenWrt v25.12.7, update
+   it`: take OpenWrt's new version of that file, make the PA-220 change
+   in it again and write the patch again (see step 5,
+   `git diff v25.12.7 -- <file>`). Then rerun step 2. A new kernel
+   version (e.g. `config-6.12` → `config-6.18`) means the kernel config
+   patch needs the new file name.
+4. Refresh the kernel patches `950-…` to `962-…` for the new kernel:
+   ```
+   cd ~/openwrt-pa220-new
+   make target/linux/refresh V=s
+   ```
+   If one of them fails to apply, fix it by hand (`make
+   target/linux/{clean,prepare} V=s QUILT=1`, then `quilt push`, edit,
+   `quilt refresh` in the kernel source under `build_dir/`). Copy the
+   refreshed `target/linux/octeon/patches-6.12/9*.patch` back to
+   `openwrt/target/linux/octeon/patches-6.12/` (only the PA-220 ones:
+   the refresh also rewrites OpenWrt's own patches in that folder).
+5. Build (step 4), test the new image from RAM before flashing it (see
+   the [Installation Guide](INSTALLATION.md), step 9), then replace the
+   old tree with the new one.
+
+### Publishing a release
+
+1. Write the notes: `.github/release-notes/<tag>.md` (same layout as the
+   previous ones). Commit and push.
+2. Build the images from that commit (step 4).
+3. Create the release with the GitHub CLI, attaching the initramfs, the
+   targz sysupgrade image, the U-Boot binary from the previous release
+   (`gh release download <previous tag> -p u-boot-octeon_pa220.bin`)
+   and a `sha256sums` of those three files:
+   ```
+   gh release create <tag> --target <commit> --title <tag> \
+     --notes-file .github/release-notes/<tag>.md \
+     openwrt-octeon-generic-pan_pa-220-initramfs-kernel.bin \
+     openwrt-octeon-generic-pan_pa-220-targz-sysupgrade.tar \
+     u-boot-octeon_pa220.bin sha256sums
+   ```

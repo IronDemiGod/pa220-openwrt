@@ -4,8 +4,9 @@
 #
 #   ./setup.sh [directory]          first time (default: ./openwrt-pa220):
 #                                   clone OpenWrt v25.12.6, copy the PA-220
-#                                   files over it, install the feeds, write
-#                                   the build configuration
+#                                   files over it, apply patches/*.patch to
+#                                   OpenWrt's own files, install the feeds,
+#                                   write the build configuration
 #   ./setup.sh --sync <directory>   after changing files here: copy them into
 #                                   an existing tree again (only changed
 #                                   files are touched, files removed here are
@@ -47,13 +48,38 @@ elif [ ! -d "$dir/.git" ]; then
 fi
 dir=$(cd "$dir" && pwd)
 
-# PA-220 files (same paths as in the OpenWrt tree); skip the build tree
-# itself when it is inside this folder (e.g. openwrt/openwrt-pa220)
+# The PA-220 file set is put together in $stage first:
+#  - the files here (same paths as in the OpenWrt tree), except setup.sh,
+#    patches/ and the build tree itself if it is inside this folder
+#  - OpenWrt's own files changed by patches/*.patch: OpenWrt's version
+#    with the patches applied, so OpenWrt's later changes to those files
+#    are kept; a patch that no longer applies stops here
 skip=./setup.sh
 case "$dir" in
 "$here"/*) skip=./${dir#"$here"/} ;;
 esac
-new_list=$(cd "$here" && find . -path "$skip" -prune -o -type f ! -path ./setup.sh -print | sed 's|^\./||' | sort)
+stage=$(mktemp -d)
+trap 'rm -rf "$stage"' EXIT
+(cd "$here" && find . \( -path "$skip" -o -path ./patches \) -prune -o \
+	-type f ! -path ./setup.sh -print | tar cf - -T -) | (cd "$stage" && tar xf -)
+
+for p in "$here"/patches/*.patch; do
+	[ -f "$p" ] || continue
+	sed -n 's|^+++ b/||p' "$p" | while read -r f; do
+		[ -e "$stage/$f" ] && continue	# already there (earlier patch)
+		mode=$(git -C "$dir" ls-tree "$OPENWRT_TAG" -- "$f" | cut -d' ' -f1)
+		[ -n "$mode" ] || continue	# new file, created by the patch
+		mkdir -p "$stage/$(dirname "$f")"
+		git -C "$dir" show "$OPENWRT_TAG:$f" > "$stage/$f"
+		[ "$mode" = 100755 ] && chmod 755 "$stage/$f"
+		:
+	done
+	(cd "$stage" && git apply "$p") || {
+		echo "${p##*/} does not apply to OpenWrt $OPENWRT_TAG, update it" >&2
+		exit 1
+	}
+done
+new_list=$(cd "$stage" && find . -type f | sed 's|^\./||' | sort)
 
 # files copied last time that are gone here: restore OpenWrt's version
 # or remove them
@@ -72,9 +98,9 @@ fi
 if command -v rsync >/dev/null; then
 	# checksum compare: unchanged files keep their time stamps, so make
 	# only rebuilds what really changed
-	(cd "$here" && echo "$new_list" | rsync -rlpc --files-from=- . "$dir/")
+	(cd "$stage" && echo "$new_list" | rsync -rlpc --files-from=- . "$dir/")
 else
-	(cd "$here" && echo "$new_list" | tar cf - -T -) | (cd "$dir" && tar xf -)
+	(cd "$stage" && echo "$new_list" | tar cf - -T -) | (cd "$dir" && tar xf -)
 fi
 echo "$new_list" > "$dir/$MANIFEST"
 

@@ -1,0 +1,23 @@
+PA-220: default network (eth1-8 bridge at 192.168.1.2, MGT 192.168.2.1).
+
+diff --git a/target/linux/octeon/base-files/etc/board.d/01_network b/target/linux/octeon/base-files/etc/board.d/01_network
+index 10af4e8..fd65e25 100644
+--- a/target/linux/octeon/base-files/etc/board.d/01_network
++++ b/target/linux/octeon/base-files/etc/board.d/01_network
+@@ -21,6 +21,16 @@ ubnt,edgerouter-6p)
+ cisco,vedge1000)
+ 	ucidef_set_interfaces_lan_wan "mgmt0" "lan0"
+ 	;;
++pan,pa-220)
++	# eth1-8 (front ports 1-8) = one bridge (br-lan) at 192.168.1.2, meant to sit behind
++	# an existing router at 192.168.1.1 (gateway/DNS and no DHCP server:
++	# see uci-defaults 99-pa220-network). MGT = separate management
++	# network 192.168.2.1 with a small DHCP pool for a directly
++	# connected PC.
++	ucidef_set_interface "lan" device "eth1 eth2 eth3 eth4 eth5 eth6 eth7 eth8" \
++		protocol "static" ipaddr "192.168.1.2"
++	ucidef_set_interface "mgt" device "mgt" protocol "static" ipaddr "192.168.2.1"
++	;;
+ *)
+ 	ucidef_set_interfaces_lan_wan "eth0" "eth1"
+ 	;;

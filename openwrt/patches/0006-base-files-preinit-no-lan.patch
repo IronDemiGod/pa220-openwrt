@@ -1,0 +1,24 @@
+base-files: preinit network setup for boards without a "lan" network.
+
+diff --git a/package/base-files/files/lib/preinit/10_indicate_preinit b/package/base-files/files/lib/preinit/10_indicate_preinit
+index 12f8fc2..4eedc8e 100644
+--- a/package/base-files/files/lib/preinit/10_indicate_preinit
++++ b/package/base-files/files/lib/preinit/10_indicate_preinit
+@@ -131,10 +131,13 @@ preinit_config_board() {
+ 	done
+ 
+ 	json_select network
+-		json_select "lan"
+-			json_get_vars device
+-			json_get_values ports ports
+-		json_select ..
++		# boards without a "lan" network (e.g. management-port only)
++		if json_is_a lan object; then
++			json_select "lan"
++				json_get_vars device
++				json_get_values ports ports
++			json_select ..
++		fi
+ 	json_select ..
+ 
+ 	[ -n "$device" -o -n "$ports" ] || return
