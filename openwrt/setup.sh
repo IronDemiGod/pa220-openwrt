@@ -47,8 +47,13 @@ elif [ ! -d "$dir/.git" ]; then
 fi
 dir=$(cd "$dir" && pwd)
 
-# PA-220 files (same paths as in the OpenWrt tree)
-new_list=$(cd "$here" && find . -type f ! -path ./setup.sh | sed 's|^\./||' | sort)
+# PA-220 files (same paths as in the OpenWrt tree); skip the build tree
+# itself when it is inside this folder (e.g. openwrt/openwrt-pa220)
+skip=./setup.sh
+case "$dir" in
+"$here"/*) skip=./${dir#"$here"/} ;;
+esac
+new_list=$(cd "$here" && find . -path "$skip" -prune -o -type f ! -path ./setup.sh -print | sed 's|^\./||' | sort)
 
 # files copied last time that are gone here: restore OpenWrt's version
 # or remove them
