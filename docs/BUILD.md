@@ -145,6 +145,34 @@ cd ~/pa220-openwrt/u-boot
 - Test a new build from RAM before flashing it (see the
   [Installation Guide](INSTALLATION.md), step 9).
 
+### Kernel patches
+
+`openwrt/target/linux/octeon/patches-6.12/950-…` to `962-…` change the
+Linux kernel source. OpenWrt's build applies them after its own generic
+and octeon patches, then compiles the kernel. Each patch starts with a
+description of the change (950: the comment at the top of `pa220.c`).
+
+| Patch | What it does |
+|---|---|
+| `950-pan-pa220-board-fixups` | Board code (`pa220.c`): port PHY out of reset and powered up, port MACs from the EEPROM, early STAT/TEMP LEDs, port jack LEDs |
+| `951-octeon-cn70xx-agl-support` | CN70xx AGL support, ported from the OCTEON SDK |
+| `952-octeon-coremask-fixup` | Uses the legacy core mask when U-Boot's extended one is garbage |
+| `953-octeon-ethernet-optional-loop-netdevs` | No netdevs for the internal loopback ports (`octeon_ethernet.loop_netdevs=1` brings them back) |
+| `954-octeon-populate-simple-mfd` | Creates the devices below the CPLD syscon node |
+| `955-octeon-ethernet-pa220-performance` | Receive on all 4 cores, 4096 packet buffers, GRO, hardware receive checksum |
+| `956-mips-octeon-aes-ghash-crypto` | AES (ECB/CBC/CTR) and GHASH on the COP2 crypto unit |
+| `957-mmc-cavium-optional-no-ddr` | `cavium,no-ddr` device tree property: eMMC in SDR mode |
+| `958-octeon-ignore-bootloader-mem-with-replacing-cmdline` | Ignores U-Boot's PanOS `mem=4096` when the image replaces the command line |
+| `959-octeon-quiet-ubnt-pruning-fdt-crc` | UBNT pruning message only on UBNT boards, device tree checksum fixed |
+| `960-octeon-ethernet-rx-tuning-options` | Run-time `rx_gro`, `rx_irq_delay`, `rx_irq_pkts` options |
+| `961-octeon-ethernet-bridge-fastpath` | Bridge fast path: known unicast frames between bridge ports go straight from receive to transmit in the driver |
+| `962-watchdog-octeon-report-real-timeout` | Watchdog reports its real timeout |
+
+950–952, 954, 957 and 958 are needed for the PA-220 to work properly;
+953, 959 and 962 are fixes; 955, 956, 960 and 961 are performance. The
+crypto driver (956) also needs `CONFIG_CRYPTO_AES_OCTEON` from
+`openwrt/patches/0005-octeon-kernel-config-pan_pa-220.patch`.
+
 ### 7. Updating to a new OpenWrt release
 
 The PA-220 files in `openwrt/` are either new files (scripts, device tree,
@@ -164,7 +192,7 @@ that no longer fits stops `setup.sh` instead of silently undoing them.
    `git diff v25.12.7 -- <file>`). Then rerun step 2. A new kernel
    version (e.g. `config-6.12` → `config-6.18`) means the kernel config
    patch needs the new file name.
-4. Refresh the kernel patches `950-…` to `962-…` for the new kernel:
+4. Refresh the kernel patches `950-…` to `962-…` (see [Kernel patches](#kernel-patches)) for the new kernel:
    ```
    cd ~/openwrt-pa220-new
    make target/linux/refresh V=s
