@@ -131,8 +131,9 @@ cd ~/pa220-openwrt/u-boot
 ### Building on GitHub Actions
 
 `.github/workflows/build.yml` runs the same steps (`setup.sh`, `make`) on a
-GitHub runner. It starts on pushes that change `openwrt/`, or by hand from
-the Actions tab (Run workflow). The images are under Artifacts on the run
+GitHub runner. It does not start on branch pushes: run it by hand from the
+Actions tab (Run workflow, pick the branch). Pushing a `v*` tag also starts
+it and publishes a release. The images are under Artifacts on the run
 page. A first build takes 2–3 hours.
 
 To publish a release: add `.github/release-notes/<tag>.md`, then Actions →

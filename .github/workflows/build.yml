@@ -13,18 +13,12 @@ on:
         description: 'Publish a release with this tag (e.g. v1.0.2-beta, notes in .github/release-notes/<tag>.md); empty = build only'
         required: false
         default: ''
+  # Branch pushes do not build (run it by hand from the Actions tab). A
+  # pushed tag v* builds and publishes a GitHub release with the images,
+  # notes from .github/release-notes/<tag>.md
   push:
-    # A pushed tag v* also publishes a GitHub release with the images,
-    # notes from .github/release-notes/<tag>.md (path filter not applied)
     tags:
       - 'v*'
-    branches:
-      - main
-      - master
-      - 'claude/**'
-    paths:
-      - 'openwrt/**'
-      - '.github/workflows/build.yml'
 
 concurrency:
   group: build-${{ github.ref }}
